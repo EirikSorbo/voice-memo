@@ -7,6 +7,8 @@ import { createReadStream, writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { File } from 'node:buffer';
+globalThis.File = File;
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -16,16 +18,36 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 app.use(express.static('public'));
 
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function markdownToHtml(md) {
+  return md
+    .replace(/^### (.+)$/gm, '<h3 style="font-size:15px;font-weight:600;margin:20px 0 8px;">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 style="font-size:17px;font-weight:600;margin:24px 0 10px;">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 style="font-size:20px;font-weight:600;margin:0 0 16px;">$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^- (.+)$/gm, '<li style="margin:4px 0;">$1</li>')
+    .replace(/(<li.*<\/li>\n?)+/g, '<ul style="padding-left:20px;margin:8px 0;">$&</ul>')
+    .replace(/\n\n/g, '<br><br>');
+}
+
 app.post('/transcribe-and-email', upload.single('audio'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No audio file received' });
 
   const tmpPath = join(tmpdir(), `memo-${randomUUID()}.webm`);
 
   try {
-    // Write buffer to temp file (OpenAI SDK needs a stream with a filename)
     writeFileSync(tmpPath, req.file.buffer);
 
-    // 1. Transcribe with Whisper (auto-detects language)
+    // 1. Transcribe with Whisper
     const transcription = await openai.audio.transcriptions.create({
       file: createReadStream(tmpPath),
       model: 'whisper-1',
@@ -36,7 +58,7 @@ app.post('/transcribe-and-email', upload.single('audio'), async (req, res) => {
       return res.status(422).json({ error: 'Could not transcribe audio — please try again' });
     }
 
-    // 2. Structure the transcript into a report with GPT
+    // 2. Structure into a report with GPT
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -60,7 +82,9 @@ Keep it concise and professional. Use markdown formatting.`,
 
     const report = completion.choices[0].message.content;
 
-    // 3. Send the report by email
+    // 3. Send email — escape transcript to prevent HTML injection
+    const safeTranscript = escapeHtml(transcript);
+
     await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL,
       to: process.env.RECIPIENT_EMAIL,
@@ -68,12 +92,10 @@ Keep it concise and professional. Use markdown formatting.`,
       html: `
         <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
           <p style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #888; margin-bottom: 24px;">Voice Memo Report</p>
-          <div style="white-space: pre-wrap; line-height: 1.7; font-size: 15px;">${markdownToHtml(report)}</div>
+          <div style="line-height: 1.7; font-size: 15px;">${markdownToHtml(report)}</div>
           <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
-          <details>
-            <summary style="font-size: 12px; color: #aaa; cursor: pointer; letter-spacing: 0.05em;">Original transcript</summary>
-            <p style="font-size: 13px; color: #666; margin-top: 12px; line-height: 1.6; font-style: italic;">${transcript}</p>
-          </details>
+          <p style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #aaa; margin-bottom: 12px;">Original transcript</p>
+          <p style="font-size: 13px; color: #666; line-height: 1.6; font-style: italic;">${safeTranscript}</p>
         </div>
       `,
     });
@@ -86,19 +108,6 @@ Keep it concise and professional. Use markdown formatting.`,
     try { unlinkSync(tmpPath); } catch {}
   }
 });
-
-// Simple markdown-to-HTML converter for email
-function markdownToHtml(md) {
-  return md
-    .replace(/^### (.+)$/gm, '<h3 style="font-size:15px;font-weight:600;margin:20px 0 8px;">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 style="font-size:17px;font-weight:600;margin:24px 0 10px;">$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1 style="font-size:20px;font-weight:600;margin:0 0 16px;">$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^- (.+)$/gm, '<li style="margin:4px 0;">$1</li>')
-    .replace(/(<li.*<\/li>\n?)+/g, '<ul style="padding-left:20px;margin:8px 0;">$&</ul>')
-    .replace(/\n\n/g, '<br><br>');
-}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Voice Memo running on port ${PORT}`));
