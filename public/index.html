@@ -219,7 +219,7 @@
     <p class="status" id="status">&nbsp;</p>
     <p class="timer" id="timer">&nbsp;</p>
 
-    <button class="send-btn" id="sendBtn" onclick="sendMemo()">Transcribe &amp; Email</button>
+    <button class="send-btn" id="sendBtn" onclick="sendMemo()">Send</button>
     <p class="feedback" id="feedback">&nbsp;</p>
   </div>
 
@@ -289,6 +289,23 @@
     }
 
     async function sendMemo() {
+      // If still recording, stop first and wait for audio to be ready
+      if (isRecording) {
+        await new Promise(resolve => {
+          mediaRecorder.onstop = () => {
+            audioBlob = new Blob(chunks, { type: 'audio/webm' });
+            mediaRecorder.stream.getTracks().forEach(t => t.stop());
+            resolve();
+          };
+          mediaRecorder.stop();
+          isRecording = false;
+          clearInterval(timerInterval);
+          micBtn.classList.remove('recording');
+          pulses.forEach(p => p.classList.remove('active'));
+          status.classList.remove('recording');
+        });
+      }
+
       if (!audioBlob) {
         setFeedback('record something first', 'error');
         return;
@@ -305,10 +322,10 @@
         const res = await fetch('/transcribe-and-email', { method: 'POST', body: formData });
 
         if (res.ok) {
-          setFeedback('report sent to your email ✓', 'success');
+          setFeedback('Sent', 'success');
           audioBlob = null;
           sendBtn.classList.remove('sending');
-          sendBtn.innerHTML = 'Transcribe &amp; Email';
+          sendBtn.innerHTML = 'Send';
           timer.innerHTML = '&nbsp;';
           
         } else {
@@ -318,7 +335,7 @@
       } catch (e) {
         setFeedback(e.message || 'something went wrong — try again', 'error');
         sendBtn.classList.remove('sending');
-        sendBtn.innerHTML = 'Transcribe &amp; Email';
+        sendBtn.innerHTML = 'Send';
       }
     }
   </script>
