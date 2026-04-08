@@ -41,7 +41,7 @@
     html, body {
       height: 100%;
       background: var(--bg);
-      color: var(--text);
+      color: white;
       font-family: 'DM Mono', monospace;
       -webkit-font-smoothing: antialiased;
     }
@@ -61,19 +61,12 @@
       font-weight: 300;
       font-size: 24px;
       letter-spacing: -0.02em;
-      color: var(--text);
+      color: white;
       margin-bottom: 6px;
       text-align: center;
     }
 
-    .subtitle {
-      font-size: 10px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--hint);
-      margin-bottom: 52px;
-      text-align: center;
-    }
+    .subtitle { display: none; }
 
     .record-ring {
       position: relative;
@@ -124,7 +117,7 @@
     .mic-icon {
       width: 34px;
       height: 34px;
-      color: var(--text);
+      color: white;
       transition: color 0.2s;
     }
 
@@ -172,8 +165,8 @@
     .send-btn.ready {
       opacity: 1;
       pointer-events: all;
-      border-color: var(--border-mid);
-      color: var(--text);
+      border-color: #378ADD; background: #378ADD;
+      color: white;
     }
 
     .send-btn.ready:active {
