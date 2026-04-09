@@ -17,7 +17,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 app.use(express.static('public'));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 function escapeHtml(str) {
   return str
@@ -29,15 +29,40 @@ function escapeHtml(str) {
 }
 
 function markdownToHtml(md) {
-  return md
-    .replace(/^### (.+)$/gm, '<h3 style="font-size:15px;font-weight:600;margin:20px 0 8px;">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 style="font-size:17px;font-weight:600;margin:24px 0 10px;">$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1 style="font-size:20px;font-weight:600;margin:0 0 16px;">$1</h1>')
+  const lines = md.split('\n');
+  const html = [];
+  let inList = false;
+
+  for (const line of lines) {
+    if (line.startsWith('### ')) {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push(`<h3 style="font-size:15px;font-weight:600;margin:20px 0 8px;">${line.slice(4)}</h3>`);
+    } else if (line.startsWith('## ')) {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push(`<h2 style="font-size:17px;font-weight:600;margin:24px 0 10px;">${line.slice(3)}</h2>`);
+    } else if (line.startsWith('# ')) {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push(`<h1 style="font-size:20px;font-weight:600;margin:0 0 16px;">${line.slice(2)}</h1>`);
+    } else if (line.startsWith('- ')) {
+      if (!inList) { html.push('<ul style="padding-left:20px;margin:8px 0;">'); inList = true; }
+      html.push(`<li style="margin:4px 0;">${inline(line.slice(2))}</li>`);
+    } else if (line.trim() === '') {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push('<br>');
+    } else {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push(`<p style="margin:4px 0;">${inline(line)}</p>`);
+    }
+  }
+
+  if (inList) html.push('</ul>');
+  return html.join('\n');
+}
+
+function inline(text) {
+  return text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^- (.+)$/gm, '<li style="margin:4px 0;">$1</li>')
-    .replace(/(<li.*<\/li>\n?)+/g, '<ul style="padding-left:20px;margin:8px 0;">$&</ul>')
-    .replace(/\n\n/g, '<br><br>');
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
 }
 
 // Step 1: Transcribe audio with Whisper
@@ -61,7 +86,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
 
     res.json({ transcript });
   } catch (err) {
-    console.error('Transcription error:', err);
+    console.error('Transcription error:', err.message, err.stack);
     res.status(500).json({ error: err.message || 'Transcription failed' });
   } finally {
     try { unlinkSync(tmpPath); } catch {}
@@ -71,7 +96,12 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
 // Step 2: Structure and email the transcript
 app.post('/send-report', async (req, res) => {
   const { transcript } = req.body;
-  if (!transcript) return res.status(400).json({ error: 'No transcript provided' });
+  if (!transcript || typeof transcript !== 'string') {
+    return res.status(400).json({ error: 'No transcript provided' });
+  }
+  if (transcript.length > 50000) {
+    return res.status(400).json({ error: 'Transcript too long' });
+  }
 
   try {
     const completion = await openai.chat.completions.create({
@@ -115,7 +145,7 @@ Keep it concise and professional. Use markdown formatting.`,
 
     res.json({ ok: true });
   } catch (err) {
-    console.error('Send error:', err);
+    console.error('Send error:', err.message, err.stack);
     res.status(500).json({ error: err.message || 'Something went wrong' });
   }
 });

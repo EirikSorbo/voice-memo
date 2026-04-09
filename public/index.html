@@ -110,16 +110,8 @@
     }
 
     .mic-btn:active { transform: scale(0.95); }
-
-    .mic-btn.recording {
-      background: var(--red);
-      border-color: var(--red);
-    }
-
-    .mic-btn.paused {
-      background: var(--red-bg);
-      border-color: var(--red-border);
-    }
+    .mic-btn.recording { background: var(--red); border-color: var(--red); }
+    .mic-btn.paused { background: var(--red-bg); border-color: var(--red-border); }
 
     .mic-icon {
       width: 34px;
@@ -131,7 +123,6 @@
     .mic-btn.recording .mic-icon { color: white; }
     .mic-btn.paused .mic-icon { color: var(--red); }
 
-    /* Mini controls below mic */
     .mini-controls {
       display: flex;
       gap: 20px;
@@ -144,10 +135,7 @@
       transition: opacity 0.2s;
     }
 
-    .mini-controls.visible {
-      opacity: 1;
-      pointer-events: all;
-    }
+    .mini-controls.visible { opacity: 1; pointer-events: all; }
 
     .mini-btn {
       background: none;
@@ -165,7 +153,6 @@
     }
 
     .mini-btn:active { transform: scale(0.93); background: var(--border); }
-
     .mini-btn svg { width: 16px; height: 16px; }
 
     .status {
@@ -260,7 +247,7 @@
       <div class="pulse" id="p1"></div>
       <div class="pulse" id="p2"></div>
       <div class="pulse" id="p3"></div>
-      <button class="mic-btn" id="micBtn" onclick="toggleRecording()" aria-label="Record">
+      <button class="mic-btn" id="micBtn" aria-label="Record">
         <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="9" y="2" width="6" height="12" rx="3"/>
           <path d="M5 10a7 7 0 0 0 14 0"/>
@@ -270,20 +257,17 @@
       </button>
     </div>
 
-    <!-- Pause and delete controls, shown only during/after recording -->
     <div class="mini-controls" id="miniControls">
-      <button class="mini-btn" id="pauseBtn" onclick="togglePause()" aria-label="Pause">
-        <!-- Pause icon (default) -->
+      <button class="mini-btn" id="pauseBtn" aria-label="Pause">
         <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor">
           <rect x="6" y="4" width="4" height="16" rx="1"/>
           <rect x="14" y="4" width="4" height="16" rx="1"/>
         </svg>
-        <!-- Play icon (shown when paused) -->
         <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none;">
           <polygon points="5,3 19,12 5,21"/>
         </svg>
       </button>
-      <button class="mini-btn" id="deleteBtn" onclick="deleteMemo()" aria-label="Delete" style="color: var(--red);">
+      <button class="mini-btn" id="deleteBtn" aria-label="Delete" style="color: var(--red);">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3,6 5,6 21,6"/>
           <path d="M19,6l-1,14a2,2,0,0,1-2,2H8a2,2,0,0,1-2-2L5,6"/>
@@ -298,38 +282,44 @@
 
     <div class="transcript-box" id="transcriptBox"></div>
 
-    <button class="btn btn-blue" id="actionBtn" onclick="handleAction()">Transcribe</button>
+    <button class="btn btn-blue" id="actionBtn">Transcribe</button>
     <p class="feedback" id="feedback">&nbsp;</p>
   </div>
 
   <script>
     let isRecording = false;
     let isPaused = false;
+    let isBusy = false;
     let mediaRecorder = null;
     let chunks = [];
     let timerInterval = null;
     let seconds = 0;
     let audioBlob = null;
     let transcript = null;
-    let appState = 'idle';
+    let appState = 'idle'; // idle | recording | transcribing | ready | sending
 
     const micBtn        = document.getElementById('micBtn');
-    const status        = document.getElementById('status');
-    const timer         = document.getElementById('timer');
+    const statusEl      = document.getElementById('status');
+    const timerEl       = document.getElementById('timer');
     const actionBtn     = document.getElementById('actionBtn');
-    const feedback      = document.getElementById('feedback');
+    const feedbackEl    = document.getElementById('feedback');
     const transcriptBox = document.getElementById('transcriptBox');
     const miniControls  = document.getElementById('miniControls');
     const pauseBtn      = document.getElementById('pauseBtn');
     const pauseIcon     = document.getElementById('pauseIcon');
     const playIcon      = document.getElementById('playIcon');
-    const pulses        = [document.getElementById('p1'), document.getElementById('p2'), document.getElementById('p3')];
+    const pulses        = ['p1','p2','p3'].map(id => document.getElementById(id));
 
     function pad(n) { return n < 10 ? '0' + n : String(n); }
 
     function setFeedback(msg, cls) {
-      feedback.textContent = msg;
-      feedback.className = 'feedback' + (cls ? ' ' + cls : '');
+      feedbackEl.textContent = msg || '\u00a0';
+      feedbackEl.className = 'feedback' + (cls ? ' ' + cls : '');
+    }
+
+    function setPauseIcon(paused) {
+      pauseIcon.style.display = paused ? 'none' : '';
+      playIcon.style.display  = paused ? '' : 'none';
     }
 
     function setState(s) {
@@ -340,9 +330,13 @@
         transcriptBox.classList.remove('visible');
         transcriptBox.textContent = '';
         miniControls.classList.remove('visible');
+        timerEl.innerHTML = '&nbsp;';
+        statusEl.innerHTML = '&nbsp;';
+        statusEl.className = 'status';
       } else if (s === 'transcribing') {
         actionBtn.className = 'btn btn-blue busy';
         actionBtn.innerHTML = 'Transcribing<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+        miniControls.classList.remove('visible');
       } else if (s === 'ready') {
         actionBtn.textContent = 'Send';
         actionBtn.className = 'btn btn-green';
@@ -354,129 +348,131 @@
       }
     }
 
-    function showMiniControls() {
-      miniControls.classList.add('visible');
+    function startTimer() {
+      seconds = 0;
+      timerEl.textContent = '00:00';
+      timerInterval = setInterval(() => {
+        seconds++;
+        timerEl.textContent = pad(Math.floor(seconds / 60)) + ':' + pad(seconds % 60);
+      }, 1000);
     }
 
-    function setPauseIcon(paused) {
-      pauseIcon.style.display = paused ? 'none' : '';
-      playIcon.style.display = paused ? '' : 'none';
+    function stopTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null;
     }
 
-    function deleteMemo() {
-      // Stop recording if active
+    function stopRecording() {
+      return new Promise(resolve => {
+        if (!mediaRecorder) { resolve(); return; }
+        mediaRecorder.onstop = () => {
+          audioBlob = new Blob(chunks, { type: 'audio/webm' });
+          try { mediaRecorder.stream.getTracks().forEach(t => t.stop()); } catch {}
+          resolve();
+        };
+        // Resume first if paused, so .stop() fires correctly
+        if (isPaused) { try { mediaRecorder.resume(); } catch {} }
+        mediaRecorder.stop();
+        isRecording = false;
+        isPaused = false;
+        stopTimer();
+        micBtn.classList.remove('recording', 'paused');
+        pulses.forEach(p => p.classList.remove('active'));
+        statusEl.className = 'status';
+        statusEl.innerHTML = '&nbsp;';
+        setPauseIcon(false);
+      });
+    }
+
+    function resetAll() {
       if (mediaRecorder && (isRecording || isPaused)) {
         mediaRecorder.onstop = () => {};
-        mediaRecorder.stop();
-        if (mediaRecorder.stream) mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        try { if (isPaused) mediaRecorder.resume(); mediaRecorder.stop(); } catch {}
+        try { mediaRecorder.stream.getTracks().forEach(t => t.stop()); } catch {}
       }
       isRecording = false;
       isPaused = false;
+      isBusy = false;
       audioBlob = null;
       transcript = null;
       chunks = [];
-      clearInterval(timerInterval);
-      seconds = 0;
+      stopTimer();
       micBtn.classList.remove('recording', 'paused');
       pulses.forEach(p => p.classList.remove('active'));
-      status.innerHTML = '&nbsp;';
-      status.className = 'status';
-      timer.innerHTML = '&nbsp;';
       setPauseIcon(false);
       setFeedback('');
       setState('idle');
     }
 
-    function togglePause() {
+    // Mic button — start/stop recording
+    micBtn.addEventListener('click', async () => {
+      if (isBusy) return;
+      if (!isRecording && !isPaused) {
+        // Start fresh recording
+        resetAll();
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          chunks = [];
+          mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+          mediaRecorder.start(100);
+          isRecording = true;
+          appState = 'idle';
+          startTimer();
+          micBtn.classList.add('recording');
+          pulses.forEach(p => p.classList.add('active'));
+          statusEl.textContent = 'recording';
+          statusEl.className = 'status recording';
+          miniControls.classList.add('visible');
+          setFeedback('');
+        } catch {
+          setFeedback('microphone access denied', 'error');
+        }
+      } else {
+        // Stop recording
+        await stopRecording();
+        miniControls.classList.add('visible');
+      }
+    });
+
+    // Pause/resume button
+    pauseBtn.addEventListener('click', () => {
       if (!mediaRecorder) return;
       if (!isPaused) {
         mediaRecorder.pause();
         isPaused = true;
-        clearInterval(timerInterval);
+        stopTimer();
         micBtn.classList.remove('recording');
         micBtn.classList.add('paused');
         pulses.forEach(p => p.classList.remove('active'));
-        status.textContent = 'paused';
-        status.className = 'status paused';
+        statusEl.textContent = 'paused';
+        statusEl.className = 'status paused';
         setPauseIcon(true);
       } else {
         mediaRecorder.resume();
         isPaused = false;
         timerInterval = setInterval(() => {
           seconds++;
-          const m = Math.floor(seconds / 60);
-          const s = seconds % 60;
-          timer.textContent = pad(m) + ':' + pad(s);
+          timerEl.textContent = pad(Math.floor(seconds / 60)) + ':' + pad(seconds % 60);
         }, 1000);
         micBtn.classList.add('recording');
         micBtn.classList.remove('paused');
         pulses.forEach(p => p.classList.add('active'));
-        status.textContent = 'recording';
-        status.className = 'status recording';
+        statusEl.textContent = 'recording';
+        statusEl.className = 'status recording';
         setPauseIcon(false);
       }
-    }
+    });
 
-    async function stopRecording() {
-      return new Promise(resolve => {
-        mediaRecorder.onstop = () => {
-          audioBlob = new Blob(chunks, { type: 'audio/webm' });
-          if (mediaRecorder.stream) mediaRecorder.stream.getTracks().forEach(t => t.stop());
-          resolve();
-        };
-        if (isPaused) mediaRecorder.resume();
-        mediaRecorder.stop();
-        isRecording = false;
-        isPaused = false;
-        clearInterval(timerInterval);
-        micBtn.classList.remove('recording', 'paused');
-        pulses.forEach(p => p.classList.remove('active'));
-        status.className = 'status';
-        status.innerHTML = '&nbsp;';
-        setPauseIcon(false);
-      });
-    }
+    // Delete button
+    document.getElementById('deleteBtn').addEventListener('click', resetAll);
 
-    async function toggleRecording() {
-      if (!isRecording && !isPaused) {
-        transcript = null;
-        audioBlob = null;
-        setState('idle');
-        setFeedback('');
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(stream);
-          chunks = [];
+    // Transcribe / Send button
+    actionBtn.addEventListener('click', async () => {
+      if (isBusy) return;
 
-          mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-
-          mediaRecorder.start(100);
-          isRecording = true;
-          seconds = 0;
-          timerInterval = setInterval(() => {
-            seconds++;
-            const m = Math.floor(seconds / 60);
-            const s = seconds % 60;
-            timer.textContent = pad(m) + ':' + pad(s);
-          }, 1000);
-
-          micBtn.classList.add('recording');
-          pulses.forEach(p => p.classList.add('active'));
-          status.textContent = 'recording';
-          status.className = 'status recording';
-          timer.textContent = '00:00';
-          showMiniControls();
-        } catch (e) {
-          setFeedback('microphone access denied', 'error');
-        }
-      } else {
-        await stopRecording();
-        showMiniControls();
-      }
-    }
-
-    async function handleAction() {
       if (appState === 'idle') {
+        // Stop recording if still going
         if (isRecording || isPaused) await stopRecording();
 
         if (!audioBlob) {
@@ -484,56 +480,51 @@
           return;
         }
 
+        isBusy = true;
         setState('transcribing');
         setFeedback('');
 
         try {
           const formData = new FormData();
           formData.append('audio', audioBlob, 'memo.webm');
-
           const res = await fetch('/transcribe', { method: 'POST', body: formData });
           const data = await res.json();
-
           if (!res.ok) throw new Error(data.error || 'transcription failed');
-
           transcript = data.transcript;
           transcriptBox.textContent = transcript;
           setState('ready');
-          timer.innerHTML = '&nbsp;';
         } catch (e) {
           setFeedback(e.message || 'something went wrong', 'error');
           setState('idle');
+        } finally {
+          isBusy = false;
         }
 
       } else if (appState === 'ready') {
+        isBusy = true;
         setState('sending');
         setFeedback('');
 
         try {
-          console.log("Sending transcript:", transcript);
           const res = await fetch('/send-report', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transcript })
           });
-
-          console.log("Response status:", res.status);
-          if (res.ok) {
-            setFeedback('Sent', 'success');
-            audioBlob = null;
-            transcript = null;
-            timer.innerHTML = '&nbsp;';
-            setState('idle');
-          } else {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || 'server error');
-          }
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'server error');
+          setFeedback('Sent', 'success');
+          audioBlob = null;
+          transcript = null;
+          setState('idle');
         } catch (e) {
           setFeedback(e.message || 'something went wrong', 'error');
           setState('ready');
+        } finally {
+          isBusy = false;
         }
       }
-    }
+    });
   </script>
 </body>
 </html>
