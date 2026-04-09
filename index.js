@@ -77,14 +77,16 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     const transcription = await openai.audio.transcriptions.create({
       file: createReadStream(tmpPath),
       model: 'whisper-1',
+      response_format: 'verbose_json',
     });
 
     const transcript = transcription.text;
+    const language = transcription.language || 'english';
     if (!transcript || transcript.trim().length === 0) {
       return res.status(422).json({ error: 'Could not transcribe audio — please try again' });
     }
 
-    res.json({ transcript });
+    res.json({ transcript, language });
   } catch (err) {
     console.error('Transcription error:', err.message, err.stack);
     res.status(500).json({ error: err.message || 'Transcription failed' });
@@ -95,13 +97,15 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
 
 // Step 2: Structure and email the transcript
 app.post('/send-report', async (req, res) => {
-  const { transcript } = req.body;
+  const { transcript, language } = req.body;
   if (!transcript || typeof transcript !== 'string') {
     return res.status(400).json({ error: 'No transcript provided' });
   }
   if (transcript.length > 50000) {
     return res.status(400).json({ error: 'Transcript too long' });
   }
+
+  const languageName = language || 'the same language as the transcript';
 
   try {
     const completion = await openai.chat.completions.create({
@@ -110,7 +114,7 @@ app.post('/send-report', async (req, res) => {
         {
           role: 'system',
           content: `You are a personal assistant that turns spoken voice memos into clean, structured reports.
-The user may speak in Norwegian or English — always respond in the same language they used.
+You MUST write the entire report in ${languageName}. Do not switch languages under any circumstances.
 Format the report with:
 - A short title summarizing the main topic
 - Key points as a bulleted list

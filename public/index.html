@@ -296,6 +296,7 @@
     let seconds = 0;
     let audioBlob = null;
     let transcript = null;
+    let language = null;
     let appState = 'idle'; // idle | recording | transcribing | ready | sending
 
     const micBtn        = document.getElementById('micBtn');
@@ -339,7 +340,7 @@
         miniControls.classList.remove('visible');
       } else if (s === 'ready') {
         actionBtn.textContent = 'Send';
-        actionBtn.className = 'btn btn-green';
+        actionBtn.className = "btn btn-blue";
         transcriptBox.classList.add('visible');
         miniControls.classList.remove('visible');
       } else if (s === 'sending') {
@@ -491,6 +492,7 @@
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'transcription failed');
           transcript = data.transcript;
+          language = data.language;
           transcriptBox.textContent = transcript;
           setState('ready');
         } catch (e) {
@@ -509,7 +511,7 @@
           const res = await fetch('/send-report', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transcript })
+            body: JSON.stringify({ transcript, language })
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'server error');
