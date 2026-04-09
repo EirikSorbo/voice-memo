@@ -510,12 +510,14 @@
         setFeedback('');
 
         try {
+          console.log("Sending transcript:", transcript);
           const res = await fetch('/send-report', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transcript })
           });
 
+          console.log("Response status:", res.status);
           if (res.ok) {
             setFeedback('Sent', 'success');
             audioBlob = null;
