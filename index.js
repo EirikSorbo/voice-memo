@@ -17,6 +17,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 app.use(express.static('public'));
+app.use(express.json());
 
 function escapeHtml(str) {
   return str
@@ -39,7 +40,8 @@ function markdownToHtml(md) {
     .replace(/\n\n/g, '<br><br>');
 }
 
-app.post('/transcribe-and-email', upload.single('audio'), async (req, res) => {
+// Step 1: Transcribe audio with Whisper
+app.post('/transcribe', upload.single('audio'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No audio file received' });
 
   const tmpPath = join(tmpdir(), `memo-${randomUUID()}.webm`);
@@ -47,7 +49,6 @@ app.post('/transcribe-and-email', upload.single('audio'), async (req, res) => {
   try {
     writeFileSync(tmpPath, req.file.buffer);
 
-    // 1. Transcribe with Whisper
     const transcription = await openai.audio.transcriptions.create({
       file: createReadStream(tmpPath),
       model: 'whisper-1',
@@ -58,7 +59,21 @@ app.post('/transcribe-and-email', upload.single('audio'), async (req, res) => {
       return res.status(422).json({ error: 'Could not transcribe audio — please try again' });
     }
 
-    // 2. Structure into a report with GPT
+    res.json({ transcript });
+  } catch (err) {
+    console.error('Transcription error:', err);
+    res.status(500).json({ error: err.message || 'Transcription failed' });
+  } finally {
+    try { unlinkSync(tmpPath); } catch {}
+  }
+});
+
+// Step 2: Structure and email the transcript
+app.post('/send-report', async (req, res) => {
+  const { transcript } = req.body;
+  if (!transcript) return res.status(400).json({ error: 'No transcript provided' });
+
+  try {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -81,14 +96,12 @@ Keep it concise and professional. Use markdown formatting.`,
     });
 
     const report = completion.choices[0].message.content;
-
-    // 3. Send email — escape transcript to prevent HTML injection
     const safeTranscript = escapeHtml(transcript);
 
     await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL,
       to: process.env.RECIPIENT_EMAIL,
-      subject: `Voice Memo Report — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+      subject: `Voice Memo — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
       html: `
         <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
           <p style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #888; margin-bottom: 24px;">Voice Memo Report</p>
@@ -102,10 +115,8 @@ Keep it concise and professional. Use markdown formatting.`,
 
     res.json({ ok: true });
   } catch (err) {
-    console.error('Error:', err);
+    console.error('Send error:', err);
     res.status(500).json({ error: err.message || 'Something went wrong' });
-  } finally {
-    try { unlinkSync(tmpPath); } catch {}
   }
 });
 

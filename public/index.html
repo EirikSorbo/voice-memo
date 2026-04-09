@@ -66,18 +66,15 @@
       font-size: 24px;
       letter-spacing: -0.02em;
       color: var(--text);
-      margin-bottom: 6px;
+      margin-bottom: 32px;
       text-align: center;
     }
-
-    .subtitle { display: none; }
 
     .record-ring {
       position: relative;
       width: 148px;
       height: 148px;
-      margin-bottom: 28px;
-      margin-top: 32px;
+      margin-bottom: 20px;
     }
 
     .pulse {
@@ -119,6 +116,11 @@
       border-color: var(--red);
     }
 
+    .mic-btn.paused {
+      background: var(--red-bg);
+      border-color: var(--red-border);
+    }
+
     .mic-icon {
       width: 34px;
       height: 34px;
@@ -127,6 +129,44 @@
     }
 
     .mic-btn.recording .mic-icon { color: white; }
+    .mic-btn.paused .mic-icon { color: var(--red); }
+
+    /* Mini controls below mic */
+    .mini-controls {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      justify-content: center;
+      height: 36px;
+      margin-bottom: 8px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .mini-controls.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .mini-btn {
+      background: none;
+      border: 0.5px solid var(--border-mid);
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s, transform 0.1s;
+      color: var(--muted);
+    }
+
+    .mini-btn:active { transform: scale(0.93); background: var(--border); }
+
+    .mini-btn svg { width: 16px; height: 16px; }
 
     .status {
       font-size: 11px;
@@ -140,23 +180,43 @@
     }
 
     .status.recording { color: var(--red); }
+    .status.paused { color: var(--muted); }
 
     .timer {
       font-size: 13px;
       color: var(--muted);
       text-align: center;
       height: 20px;
-      margin-bottom: 40px;
+      margin-bottom: 28px;
       font-variant-numeric: tabular-nums;
     }
 
-    .send-btn {
+    .transcript-box {
+      display: none;
+      width: 100%;
+      max-width: 420px;
+      background: var(--surface);
+      border: 0.5px solid var(--border-mid);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+      margin-bottom: 20px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .transcript-box.visible { display: block; }
+
+    .btn {
       font-family: 'DM Mono', monospace;
       font-size: 11px;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: white;
-      background: var(--blue);
       border: none;
       border-radius: var(--radius);
       padding: 14px 32px;
@@ -165,15 +225,10 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    .send-btn:active {
-      transform: scale(0.97);
-      opacity: 0.85;
-    }
-
-    .send-btn.sending {
-      opacity: 0.5;
-      pointer-events: none;
-    }
+    .btn:active { transform: scale(0.97); opacity: 0.85; }
+    .btn.busy { opacity: 0.5; pointer-events: none; }
+    .btn-blue { background: var(--blue); }
+    .btn-green { background: var(--green); }
 
     .feedback {
       margin-top: 20px;
@@ -200,7 +255,6 @@
 <body>
   <div class="app">
     <p class="title">Voice Memo</p>
-    <p class="subtitle">speak · transcribe · send</p>
 
     <div class="record-ring">
       <div class="pulse" id="p1"></div>
@@ -216,27 +270,60 @@
       </button>
     </div>
 
+    <!-- Pause and delete controls, shown only during/after recording -->
+    <div class="mini-controls" id="miniControls">
+      <button class="mini-btn" id="pauseBtn" onclick="togglePause()" aria-label="Pause">
+        <!-- Pause icon (default) -->
+        <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="4" width="4" height="16" rx="1"/>
+          <rect x="14" y="4" width="4" height="16" rx="1"/>
+        </svg>
+        <!-- Play icon (shown when paused) -->
+        <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none;">
+          <polygon points="5,3 19,12 5,21"/>
+        </svg>
+      </button>
+      <button class="mini-btn" id="deleteBtn" onclick="deleteMemo()" aria-label="Delete" style="color: var(--red);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3,6 5,6 21,6"/>
+          <path d="M19,6l-1,14a2,2,0,0,1-2,2H8a2,2,0,0,1-2-2L5,6"/>
+          <path d="M10,11v6M14,11v6"/>
+          <path d="M9,6V4a1,1,0,0,1,1-1h4a1,1,0,0,1,1,1V6"/>
+        </svg>
+      </button>
+    </div>
+
     <p class="status" id="status">&nbsp;</p>
     <p class="timer" id="timer">&nbsp;</p>
 
-    <button class="send-btn" id="sendBtn" onclick="sendMemo()">Send</button>
+    <div class="transcript-box" id="transcriptBox"></div>
+
+    <button class="btn btn-blue" id="actionBtn" onclick="handleAction()">Transcribe</button>
     <p class="feedback" id="feedback">&nbsp;</p>
   </div>
 
   <script>
     let isRecording = false;
+    let isPaused = false;
     let mediaRecorder = null;
     let chunks = [];
     let timerInterval = null;
     let seconds = 0;
     let audioBlob = null;
+    let transcript = null;
+    let appState = 'idle';
 
-    const micBtn   = document.getElementById('micBtn');
-    const status   = document.getElementById('status');
-    const timer    = document.getElementById('timer');
-    const sendBtn  = document.getElementById('sendBtn');
-    const feedback = document.getElementById('feedback');
-    const pulses   = [document.getElementById('p1'), document.getElementById('p2'), document.getElementById('p3')];
+    const micBtn        = document.getElementById('micBtn');
+    const status        = document.getElementById('status');
+    const timer         = document.getElementById('timer');
+    const actionBtn     = document.getElementById('actionBtn');
+    const feedback      = document.getElementById('feedback');
+    const transcriptBox = document.getElementById('transcriptBox');
+    const miniControls  = document.getElementById('miniControls');
+    const pauseBtn      = document.getElementById('pauseBtn');
+    const pauseIcon     = document.getElementById('pauseIcon');
+    const playIcon      = document.getElementById('playIcon');
+    const pulses        = [document.getElementById('p1'), document.getElementById('p2'), document.getElementById('p3')];
 
     function pad(n) { return n < 10 ? '0' + n : String(n); }
 
@@ -245,18 +332,123 @@
       feedback.className = 'feedback' + (cls ? ' ' + cls : '');
     }
 
+    function setState(s) {
+      appState = s;
+      if (s === 'idle') {
+        actionBtn.textContent = 'Transcribe';
+        actionBtn.className = 'btn btn-blue';
+        transcriptBox.classList.remove('visible');
+        transcriptBox.textContent = '';
+        miniControls.classList.remove('visible');
+      } else if (s === 'transcribing') {
+        actionBtn.className = 'btn btn-blue busy';
+        actionBtn.innerHTML = 'Transcribing<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+      } else if (s === 'ready') {
+        actionBtn.textContent = 'Send';
+        actionBtn.className = 'btn btn-green';
+        transcriptBox.classList.add('visible');
+        miniControls.classList.remove('visible');
+      } else if (s === 'sending') {
+        actionBtn.className = 'btn btn-green busy';
+        actionBtn.innerHTML = 'Sending<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+      }
+    }
+
+    function showMiniControls() {
+      miniControls.classList.add('visible');
+    }
+
+    function setPauseIcon(paused) {
+      pauseIcon.style.display = paused ? 'none' : '';
+      playIcon.style.display = paused ? '' : 'none';
+    }
+
+    function deleteMemo() {
+      // Stop recording if active
+      if (mediaRecorder && (isRecording || isPaused)) {
+        mediaRecorder.onstop = () => {};
+        mediaRecorder.stop();
+        if (mediaRecorder.stream) mediaRecorder.stream.getTracks().forEach(t => t.stop());
+      }
+      isRecording = false;
+      isPaused = false;
+      audioBlob = null;
+      transcript = null;
+      chunks = [];
+      clearInterval(timerInterval);
+      seconds = 0;
+      micBtn.classList.remove('recording', 'paused');
+      pulses.forEach(p => p.classList.remove('active'));
+      status.innerHTML = '&nbsp;';
+      status.className = 'status';
+      timer.innerHTML = '&nbsp;';
+      setPauseIcon(false);
+      setFeedback('');
+      setState('idle');
+    }
+
+    function togglePause() {
+      if (!mediaRecorder) return;
+      if (!isPaused) {
+        mediaRecorder.pause();
+        isPaused = true;
+        clearInterval(timerInterval);
+        micBtn.classList.remove('recording');
+        micBtn.classList.add('paused');
+        pulses.forEach(p => p.classList.remove('active'));
+        status.textContent = 'paused';
+        status.className = 'status paused';
+        setPauseIcon(true);
+      } else {
+        mediaRecorder.resume();
+        isPaused = false;
+        timerInterval = setInterval(() => {
+          seconds++;
+          const m = Math.floor(seconds / 60);
+          const s = seconds % 60;
+          timer.textContent = pad(m) + ':' + pad(s);
+        }, 1000);
+        micBtn.classList.add('recording');
+        micBtn.classList.remove('paused');
+        pulses.forEach(p => p.classList.add('active'));
+        status.textContent = 'recording';
+        status.className = 'status recording';
+        setPauseIcon(false);
+      }
+    }
+
+    async function stopRecording() {
+      return new Promise(resolve => {
+        mediaRecorder.onstop = () => {
+          audioBlob = new Blob(chunks, { type: 'audio/webm' });
+          if (mediaRecorder.stream) mediaRecorder.stream.getTracks().forEach(t => t.stop());
+          resolve();
+        };
+        if (isPaused) mediaRecorder.resume();
+        mediaRecorder.stop();
+        isRecording = false;
+        isPaused = false;
+        clearInterval(timerInterval);
+        micBtn.classList.remove('recording', 'paused');
+        pulses.forEach(p => p.classList.remove('active'));
+        status.className = 'status';
+        status.innerHTML = '&nbsp;';
+        setPauseIcon(false);
+      });
+    }
+
     async function toggleRecording() {
-      if (!isRecording) {
+      if (!isRecording && !isPaused) {
+        transcript = null;
+        audioBlob = null;
+        setState('idle');
+        setFeedback('');
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           mediaRecorder = new MediaRecorder(stream);
           chunks = [];
 
           mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-          mediaRecorder.onstop = () => {
-            audioBlob = new Blob(chunks, { type: 'audio/webm' });
-            stream.getTracks().forEach(t => t.stop());
-          };
 
           mediaRecorder.start(100);
           isRecording = true;
@@ -271,71 +463,73 @@
           micBtn.classList.add('recording');
           pulses.forEach(p => p.classList.add('active'));
           status.textContent = 'recording';
-          status.classList.add('recording');
+          status.className = 'status recording';
           timer.textContent = '00:00';
-          setFeedback('');
+          showMiniControls();
         } catch (e) {
           setFeedback('microphone access denied', 'error');
         }
       } else {
-        mediaRecorder.stop();
-        isRecording = false;
-        clearInterval(timerInterval);
-        micBtn.classList.remove('recording');
-        pulses.forEach(p => p.classList.remove('active'));
-        status.textContent = 'ready to send';
-        status.classList.remove('recording');
+        await stopRecording();
+        showMiniControls();
       }
     }
 
-    async function sendMemo() {
-      // If still recording, stop first and wait for audio to be ready
-      if (isRecording) {
-        await new Promise(resolve => {
-          mediaRecorder.onstop = () => {
-            audioBlob = new Blob(chunks, { type: 'audio/webm' });
-            mediaRecorder.stream.getTracks().forEach(t => t.stop());
-            resolve();
-          };
-          mediaRecorder.stop();
-          isRecording = false;
-          clearInterval(timerInterval);
-          micBtn.classList.remove('recording');
-          pulses.forEach(p => p.classList.remove('active'));
-          status.classList.remove('recording');
-        });
-      }
+    async function handleAction() {
+      if (appState === 'idle') {
+        if (isRecording || isPaused) await stopRecording();
 
-      if (!audioBlob) {
-        setFeedback('record something first', 'error');
-        return;
-      }
-
-      sendBtn.classList.add('sending');
-      sendBtn.innerHTML = 'Sending<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
-      setFeedback('');
-
-      try {
-        const formData = new FormData();
-        formData.append('audio', audioBlob, 'memo.webm');
-
-        const res = await fetch('/transcribe-and-email', { method: 'POST', body: formData });
-
-        if (res.ok) {
-          setFeedback('Sent', 'success');
-          audioBlob = null;
-          sendBtn.classList.remove('sending');
-          sendBtn.innerHTML = 'Send';
-          timer.innerHTML = '&nbsp;';
-          
-        } else {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || 'server error');
+        if (!audioBlob) {
+          setFeedback('record something first', 'error');
+          return;
         }
-      } catch (e) {
-        setFeedback(e.message || 'something went wrong — try again', 'error');
-        sendBtn.classList.remove('sending');
-        sendBtn.innerHTML = 'Send';
+
+        setState('transcribing');
+        setFeedback('');
+
+        try {
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'memo.webm');
+
+          const res = await fetch('/transcribe', { method: 'POST', body: formData });
+          const data = await res.json();
+
+          if (!res.ok) throw new Error(data.error || 'transcription failed');
+
+          transcript = data.transcript;
+          transcriptBox.textContent = transcript;
+          setState('ready');
+          timer.innerHTML = '&nbsp;';
+        } catch (e) {
+          setFeedback(e.message || 'something went wrong', 'error');
+          setState('idle');
+        }
+
+      } else if (appState === 'ready') {
+        setState('sending');
+        setFeedback('');
+
+        try {
+          const res = await fetch('/send-report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transcript })
+          });
+
+          if (res.ok) {
+            setFeedback('Sent', 'success');
+            audioBlob = null;
+            transcript = null;
+            timer.innerHTML = '&nbsp;';
+            setState('idle');
+          } else {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'server error');
+          }
+        } catch (e) {
+          setFeedback(e.message || 'something went wrong', 'error');
+          setState('ready');
+        }
       }
     }
   </script>
