@@ -26,6 +26,7 @@
       --red-border: rgba(226,75,74,0.3);
       --blue: #378ADD;
       --radius: 10px;
+      --tab-h: 60px;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -48,15 +49,69 @@
       color: var(--text);
       font-family: 'DM Mono', monospace;
       -webkit-font-smoothing: antialiased;
+      overflow: hidden;
     }
 
-    .app {
+    /* ── Tab shell ── */
+    .shell {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+    }
+
+    .tab-content {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .tab-panel {
+      position: absolute;
+      inset: 0;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .tab-panel.active { display: flex; flex-direction: column; }
+
+    /* ── Bottom tab bar ── */
+    .tab-bar {
+      height: var(--tab-h);
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      background: var(--surface);
+      border-top: 0.5px solid var(--border-mid);
+      display: flex;
+    }
+
+    .tab-item {
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 100dvh;
-      padding: 2rem 1.5rem env(safe-area-inset-bottom, 1rem);
+      gap: 4px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      color: var(--hint);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: color 0.15s;
+      border: none;
+      background: none;
+    }
+
+    .tab-item svg { width: 22px; height: 22px; }
+    .tab-item.active { color: var(--red); }
+
+    /* ── Record tab ── */
+    .app {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem 1rem;
       gap: 0;
     }
 
@@ -74,7 +129,7 @@
       position: relative;
       width: 148px;
       height: 148px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     .pulse {
@@ -122,6 +177,37 @@
 
     .mic-btn.recording .mic-icon { color: white; }
     .mic-btn.paused .mic-icon { color: var(--red); }
+
+    /* ── Language toggle ── */
+    .lang-toggle {
+      display: flex;
+      align-items: center;
+      background: var(--surface);
+      border: 0.5px solid var(--border-mid);
+      border-radius: 20px;
+      padding: 3px;
+      gap: 2px;
+      margin-bottom: 20px;
+    }
+
+    .lang-btn {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      border: none;
+      background: none;
+      color: var(--muted);
+      border-radius: 16px;
+      padding: 5px 14px;
+      cursor: pointer;
+      transition: all 0.18s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .lang-btn.active {
+      background: var(--red);
+      color: white;
+    }
 
     .mini-controls {
       display: flex;
@@ -216,7 +302,6 @@
     .btn.busy { opacity: 0.5; pointer-events: none; }
     .btn-blue { background: var(--blue); }
 
-
     .feedback {
       margin-top: 20px;
       font-size: 11px;
@@ -245,68 +330,291 @@
       0%, 80%, 100% { opacity: 0; }
       40%           { opacity: 1; }
     }
+
+    /* ── History tab ── */
+    .history-panel {
+      padding: 0;
+      background: var(--bg);
+    }
+
+    .history-header {
+      padding: 20px 20px 12px;
+      font-family: 'Fraunces', serif;
+      font-weight: 300;
+      font-size: 24px;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .history-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--hint);
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      gap: 12px;
+      padding-bottom: 60px;
+    }
+
+    .history-empty svg { width: 40px; height: 40px; opacity: 0.4; }
+
+    .history-list {
+      padding: 0 0 16px;
+    }
+
+    .history-item {
+      background: var(--surface);
+      border-bottom: 0.5px solid var(--border);
+      padding: 16px 20px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.12s;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .history-item:first-child { border-top: 0.5px solid var(--border); }
+    .history-item:active { background: var(--bg); }
+
+    .history-item-date {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .history-item-title {
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.4;
+      font-weight: 500;
+    }
+
+    .history-item-preview {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── Report detail view ── */
+    .report-detail {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+      overflow-y: auto;
+      z-index: 10;
+      flex-direction: column;
+    }
+
+    .report-detail.open { display: flex; }
+
+    .report-detail-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 16px 12px;
+      border-bottom: 0.5px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 1;
+    }
+
+    .back-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--red);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      padding: 4px 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .back-btn svg { width: 18px; height: 18px; }
+
+    .report-detail-date {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    .report-detail-body {
+      padding: 20px;
+      font-size: 14px;
+      line-height: 1.75;
+      color: var(--text);
+      word-break: break-word;
+      flex: 1;
+    }
+
+    .report-detail-body h1 { font-family: 'Fraunces', serif; font-weight: 300; font-size: 22px; margin-bottom: 16px; }
+    .report-detail-body h2 { font-size: 16px; font-weight: 600; margin: 20px 0 8px; }
+    .report-detail-body h3 { font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
+    .report-detail-body ul { padding-left: 18px; margin: 6px 0; }
+    .report-detail-body li { margin: 4px 0; }
+    .report-detail-body p { margin: 4px 0; }
+
+    .delete-report-btn {
+      margin: 0 20px 24px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--red);
+      background: none;
+      border: 0.5px solid var(--red-border);
+      border-radius: var(--radius);
+      padding: 12px;
+      cursor: pointer;
+      width: calc(100% - 40px);
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
+    }
+
+    .delete-report-btn:active { background: var(--red-bg); }
   </style>
 </head>
 <body>
-  <div class="app">
-    <p class="title">Voice Memo</p>
+  <div class="shell">
+    <div class="tab-content">
 
-    <div class="record-ring">
-      <div class="pulse" id="p1"></div>
-      <div class="pulse" id="p2"></div>
-      <div class="pulse" id="p3"></div>
-      <button class="mic-btn" id="micBtn" aria-label="Record">
-        <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <!-- ── Record tab ── -->
+      <div class="tab-panel active" id="tabRecord">
+        <div class="app">
+          <p class="title">Voice Memo</p>
+
+          <div class="record-ring">
+            <div class="pulse" id="p1"></div>
+            <div class="pulse" id="p2"></div>
+            <div class="pulse" id="p3"></div>
+            <button class="mic-btn" id="micBtn" aria-label="Record">
+              <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="2" width="6" height="12" rx="3"/>
+                <path d="M5 10a7 7 0 0 0 14 0"/>
+                <line x1="12" y1="19" x2="12" y2="22"/>
+                <line x1="8" y1="22" x2="16" y2="22"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Language toggle -->
+          <div class="lang-toggle" id="langToggle">
+            <button class="lang-btn active" id="langNo" aria-label="Norwegian">NO</button>
+            <button class="lang-btn" id="langEn" aria-label="English">EN</button>
+          </div>
+
+          <div class="mini-controls" id="miniControls">
+            <button class="mini-btn" id="pauseBtn" aria-label="Pause">
+              <svg id="pauseIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                <rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>
+              </svg>
+              <svg id="playIcon" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5,3 19,12 5,21"/>
+              </svg>
+            </button>
+            <button class="mini-btn" id="deleteBtn" aria-label="Delete">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3,6 5,6 21,6"/>
+                <path d="M19,6l-1,14a2,2,0,0,1-2,2H8a2,2,0,0,1-2-2L5,6"/>
+                <path d="M10,11v6M14,11v6"/>
+                <path d="M9,6V4a1,1,0,0,1,1-1h4a1,1,0,0,1,1,1V6"/>
+              </svg>
+            </button>
+          </div>
+
+          <p class="status" id="status">&nbsp;</p>
+          <p class="timer" id="timer">&nbsp;</p>
+
+          <div class="transcript-box" id="transcriptBox"></div>
+
+          <button class="btn btn-blue" id="actionBtn">Transcribe</button>
+          <p class="feedback" id="feedback">&nbsp;</p>
+        </div>
+      </div>
+
+      <!-- ── History tab ── -->
+      <div class="tab-panel history-panel" id="tabHistory">
+        <p class="history-header">Reports</p>
+        <div id="historyEmpty" class="history-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <path d="M9 12h6M9 16h6M7 4H4a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3"/>
+            <rect x="7" y="2" width="10" height="4" rx="1"/>
+          </svg>
+          <span>No reports yet</span>
+        </div>
+        <div id="historyList" class="history-list" style="display:none"></div>
+
+        <!-- Report detail (slides in over history) -->
+        <div class="report-detail" id="reportDetail">
+          <div class="report-detail-header">
+            <button class="back-btn" id="backBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15,18 9,12 15,6"/>
+              </svg>
+              Reports
+            </button>
+            <span class="report-detail-date" id="detailDate"></span>
+          </div>
+          <div class="report-detail-body" id="detailBody"></div>
+          <button class="delete-report-btn" id="deleteReportBtn">Delete report</button>
+        </div>
+      </div>
+
+    </div><!-- /tab-content -->
+
+    <!-- Bottom tab bar -->
+    <nav class="tab-bar">
+      <button class="tab-item active" id="tabBtnRecord">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="9" y="2" width="6" height="12" rx="3"/>
           <path d="M5 10a7 7 0 0 0 14 0"/>
           <line x1="12" y1="19" x2="12" y2="22"/>
           <line x1="8" y1="22" x2="16" y2="22"/>
         </svg>
+        Record
       </button>
-    </div>
-
-    <div class="mini-controls" id="miniControls">
-      <button class="mini-btn" id="pauseBtn" aria-label="Pause">
-        <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor">
-          <rect x="6" y="4" width="4" height="16" rx="1"/>
-          <rect x="14" y="4" width="4" height="16" rx="1"/>
-        </svg>
-        <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none;">
-          <polygon points="5,3 19,12 5,21"/>
-        </svg>
-      </button>
-      <button class="mini-btn" id="deleteBtn" aria-label="Delete" style="color: var(--red);">
+      <button class="tab-item" id="tabBtnHistory">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3,6 5,6 21,6"/>
-          <path d="M19,6l-1,14a2,2,0,0,1-2,2H8a2,2,0,0,1-2-2L5,6"/>
-          <path d="M10,11v6M14,11v6"/>
-          <path d="M9,6V4a1,1,0,0,1,1-1h4a1,1,0,0,1,1,1V6"/>
+          <path d="M9 12h6M9 16h6M7 4H4a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3"/>
+          <rect x="7" y="2" width="10" height="4" rx="1"/>
         </svg>
+        Reports
       </button>
-    </div>
-
-    <p class="status" id="status">&nbsp;</p>
-    <p class="timer" id="timer">&nbsp;</p>
-
-    <div class="transcript-box" id="transcriptBox"></div>
-
-    <button class="btn btn-blue" id="actionBtn">Transcribe</button>
-    <p class="feedback" id="feedback">&nbsp;</p>
+    </nav>
   </div>
 
   <script>
+    // ── State ──────────────────────────────────────────────
     let isRecording = false;
-    let isPaused = false;
-    let isBusy = false;
+    let isPaused    = false;
+    let isBusy      = false;
     let mediaRecorder = null;
-    let chunks = [];
+    let chunks      = [];
     let timerInterval = null;
-    let seconds = 0;
-    let audioBlob = null;
-    let transcript = null;
-    let language = null;
-    let appState = 'idle'; // idle | recording | transcribing | ready | sending
+    let seconds     = 0;
+    let audioBlob   = null;
+    let transcript  = null;
+    let language    = null;
+    let appState    = 'idle'; // idle | recording | transcribing | ready | sending
+    let forcedLang  = 'norwegian'; // 'norwegian' | 'english'
 
+    // ── Elements ───────────────────────────────────────────
     const micBtn        = document.getElementById('micBtn');
     const statusEl      = document.getElementById('status');
     const timerEl       = document.getElementById('timer');
@@ -318,7 +626,25 @@
     const pauseIcon     = document.getElementById('pauseIcon');
     const playIcon      = document.getElementById('playIcon');
     const pulses        = ['p1','p2','p3'].map(id => document.getElementById(id));
+    const langNoBtn     = document.getElementById('langNo');
+    const langEnBtn     = document.getElementById('langEn');
 
+    // History
+    const tabBtnRecord  = document.getElementById('tabBtnRecord');
+    const tabBtnHistory = document.getElementById('tabBtnHistory');
+    const tabRecord     = document.getElementById('tabRecord');
+    const tabHistory    = document.getElementById('tabHistory');
+    const historyEmpty  = document.getElementById('historyEmpty');
+    const historyList   = document.getElementById('historyList');
+    const reportDetail  = document.getElementById('reportDetail');
+    const backBtn       = document.getElementById('backBtn');
+    const detailBody    = document.getElementById('detailBody');
+    const detailDate    = document.getElementById('detailDate');
+    const deleteReportBtn = document.getElementById('deleteReportBtn');
+
+    let currentReportId = null;
+
+    // ── Helpers ────────────────────────────────────────────
     function pad(n) { return n < 10 ? '0' + n : String(n); }
 
     function setFeedback(msg, cls) {
@@ -348,7 +674,7 @@
         miniControls.classList.remove('visible');
       } else if (s === 'ready') {
         actionBtn.textContent = 'Send';
-        actionBtn.className = "btn btn-blue";
+        actionBtn.className = 'btn btn-blue';
         transcriptBox.classList.add('visible');
         miniControls.classList.remove('visible');
       } else if (s === 'sending') {
@@ -379,7 +705,6 @@
           try { mediaRecorder.stream.getTracks().forEach(t => t.stop()); } catch {}
           resolve();
         };
-        // Resume first if paused, so .stop() fires correctly
         if (isPaused) { try { mediaRecorder.resume(); } catch {} }
         mediaRecorder.stop();
         isRecording = false;
@@ -413,11 +738,178 @@
       setState('idle');
     }
 
-    // Mic button — start/stop recording
+    // ── Language toggle ────────────────────────────────────
+    langNoBtn.addEventListener('click', () => {
+      forcedLang = 'norwegian';
+      langNoBtn.classList.add('active');
+      langEnBtn.classList.remove('active');
+    });
+
+    langEnBtn.addEventListener('click', () => {
+      forcedLang = 'english';
+      langEnBtn.classList.add('active');
+      langNoBtn.classList.remove('active');
+    });
+
+    // ── Tab switching ──────────────────────────────────────
+    function showTab(name) {
+      if (name === 'record') {
+        tabRecord.classList.add('active');
+        tabHistory.classList.remove('active');
+        tabBtnRecord.classList.add('active');
+        tabBtnHistory.classList.remove('active');
+      } else {
+        tabHistory.classList.add('active');
+        tabRecord.classList.remove('active');
+        tabBtnHistory.classList.add('active');
+        tabBtnRecord.classList.remove('active');
+        renderHistory();
+      }
+    }
+
+    tabBtnRecord.addEventListener('click', () => showTab('record'));
+    tabBtnHistory.addEventListener('click', () => showTab('history'));
+
+    // ── History storage ────────────────────────────────────
+    function getReports() {
+      try { return JSON.parse(localStorage.getItem('voiceMemoReports') || '[]'); } catch { return []; }
+    }
+
+    function saveReports(reports) {
+      localStorage.setItem('voiceMemoReports', JSON.stringify(reports));
+    }
+
+    function addReport(reportText) {
+      const reports = getReports();
+      const title = extractTitle(reportText);
+      const preview = extractPreview(reportText, title);
+      reports.unshift({
+        id: Date.now().toString(),
+        date: new Date().toISOString(),
+        title,
+        preview,
+        report: reportText
+      });
+      saveReports(reports);
+    }
+
+    function extractTitle(md) {
+      const m = md.match(/^#+\s+(.+)/m);
+      if (m) return m[1].trim();
+      const firstLine = md.split('\n').find(l => l.trim());
+      return firstLine ? firstLine.replace(/^#+\s*/, '').slice(0, 60) : 'Report';
+    }
+
+    function extractPreview(md, title) {
+      return md
+        .replace(/^#+.*/gm, '')
+        .replace(/\*\*/g, '')
+        .replace(/\*/g, '')
+        .replace(/^- /gm, '')
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l && l !== title)
+        .join(' ')
+        .slice(0, 100);
+    }
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' }) +
+             ' · kl. ' + d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function renderHistory() {
+      const reports = getReports();
+      if (reports.length === 0) {
+        historyEmpty.style.display = '';
+        historyList.style.display = 'none';
+        return;
+      }
+      historyEmpty.style.display = 'none';
+      historyList.style.display = '';
+      historyList.innerHTML = reports.map(r => `
+        <div class="history-item" data-id="${r.id}">
+          <span class="history-item-date">${formatDate(r.date)}</span>
+          <span class="history-item-title">${escHtml(r.title)}</span>
+          <span class="history-item-preview">${escHtml(r.preview)}</span>
+        </div>
+      `).join('');
+
+      historyList.querySelectorAll('.history-item').forEach(el => {
+        el.addEventListener('click', () => openReport(el.dataset.id));
+      });
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function mdToHtml(md) {
+      const lines = md.split('\n');
+      const out = [];
+      let inList = false;
+      for (const line of lines) {
+        if (line.startsWith('### ')) {
+          if (inList) { out.push('</ul>'); inList = false; }
+          out.push(`<h3>${inlineMd(line.slice(4))}</h3>`);
+        } else if (line.startsWith('## ')) {
+          if (inList) { out.push('</ul>'); inList = false; }
+          out.push(`<h2>${inlineMd(line.slice(3))}</h2>`);
+        } else if (line.startsWith('# ')) {
+          if (inList) { out.push('</ul>'); inList = false; }
+          out.push(`<h1>${inlineMd(line.slice(2))}</h1>`);
+        } else if (line.startsWith('- ')) {
+          if (!inList) { out.push('<ul>'); inList = true; }
+          out.push(`<li>${inlineMd(line.slice(2))}</li>`);
+        } else if (line.trim() === '') {
+          if (inList) { out.push('</ul>'); inList = false; }
+          out.push('<br>');
+        } else {
+          if (inList) { out.push('</ul>'); inList = false; }
+          out.push(`<p>${inlineMd(line)}</p>`);
+        }
+      }
+      if (inList) out.push('</ul>');
+      return out.join('\n');
+    }
+
+    function inlineMd(text) {
+      return text
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>');
+    }
+
+    function openReport(id) {
+      const reports = getReports();
+      const r = reports.find(x => x.id === id);
+      if (!r) return;
+      currentReportId = id;
+      detailDate.textContent = formatDate(r.date);
+      detailBody.innerHTML = mdToHtml(r.report);
+      reportDetail.classList.add('open');
+    }
+
+    backBtn.addEventListener('click', () => {
+      reportDetail.classList.remove('open');
+      currentReportId = null;
+    });
+
+    deleteReportBtn.addEventListener('click', () => {
+      if (!currentReportId) return;
+      if (!confirm('Delete this report?')) return;
+      const reports = getReports().filter(r => r.id !== currentReportId);
+      saveReports(reports);
+      reportDetail.classList.remove('open');
+      currentReportId = null;
+      renderHistory();
+    });
+
+    // ── Mic button ─────────────────────────────────────────
     micBtn.addEventListener('click', async () => {
       if (isBusy) return;
       if (!isRecording && !isPaused) {
-        // Start fresh recording
         resetAll();
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -438,13 +930,12 @@
           setFeedback('microphone access denied', 'error');
         }
       } else {
-        // Stop recording
         await stopRecording();
         miniControls.classList.add('visible');
       }
     });
 
-    // Pause/resume button
+    // ── Pause/resume ───────────────────────────────────────
     pauseBtn.addEventListener('click', () => {
       if (!mediaRecorder) return;
       if (!isPaused) {
@@ -473,21 +964,16 @@
       }
     });
 
-    // Delete button
+    // ── Delete button ──────────────────────────────────────
     document.getElementById('deleteBtn').addEventListener('click', resetAll);
 
-    // Transcribe / Send button
+    // ── Transcribe / Send ──────────────────────────────────
     actionBtn.addEventListener('click', async () => {
       if (isBusy) return;
 
       if (appState === 'idle') {
-        // Stop recording if still going
         if (isRecording || isPaused) await stopRecording();
-
-        if (!audioBlob) {
-          setFeedback('record something first', 'error');
-          return;
-        }
+        if (!audioBlob) { setFeedback('record something first', 'error'); return; }
 
         isBusy = true;
         setState('transcribing');
@@ -519,10 +1005,15 @@
           const res = await fetch('/send-report', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transcript, language })
+            // Use forcedLang to override Whisper's detected language
+            body: JSON.stringify({ transcript, language: forcedLang })
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'server error');
+
+          // Save the report text to history
+          if (data.report) addReport(data.report);
+
           setFeedback('Sent', 'success');
           audioBlob = null;
           transcript = null;

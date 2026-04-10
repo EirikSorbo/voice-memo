@@ -147,7 +147,8 @@ Keep it concise and professional. Use markdown formatting.`,
       `,
     });
 
-    res.json({ ok: true });
+    // Return the report text so the client can save it to history
+    res.json({ ok: true, report });
   } catch (err) {
     console.error('Send error:', err.message, err.stack);
     res.status(500).json({ error: err.message || 'Something went wrong' });
