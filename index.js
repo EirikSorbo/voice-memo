@@ -1,17 +1,9 @@
 import 'dotenv/config';
 import express from 'express';
-import multer from 'multer';
 import OpenAI from 'openai';
 import { Resend } from 'resend';
-import { createReadStream, writeFileSync, unlinkSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
-import { File } from 'node:buffer';
-globalThis.File = File;
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -65,37 +57,7 @@ function inline(text) {
     .replace(/\*(.+?)\*/g, '<em>$1</em>');
 }
 
-// Step 1: Transcribe audio with Whisper
-app.post('/transcribe', upload.single('audio'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No audio file received' });
-
-  const tmpPath = join(tmpdir(), `memo-${randomUUID()}.webm`);
-
-  try {
-    writeFileSync(tmpPath, req.file.buffer);
-
-    const transcription = await openai.audio.transcriptions.create({
-      file: createReadStream(tmpPath),
-      model: 'whisper-1',
-      response_format: 'verbose_json',
-    });
-
-    const transcript = transcription.text;
-    const language = transcription.language || 'english';
-    if (!transcript || transcript.trim().length === 0) {
-      return res.status(422).json({ error: 'Could not transcribe audio — please try again' });
-    }
-
-    res.json({ transcript, language });
-  } catch (err) {
-    console.error('Transcription error:', err.message, err.stack);
-    res.status(500).json({ error: err.message || 'Transcription failed' });
-  } finally {
-    try { unlinkSync(tmpPath); } catch {}
-  }
-});
-
-// Step 2: Structure and email the transcript
+// Structure and email the transcript
 app.post('/send-report', async (req, res) => {
   const { transcript, language } = req.body;
   if (!transcript || typeof transcript !== 'string') {

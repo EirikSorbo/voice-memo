@@ -543,7 +543,7 @@
 
           <div class="transcript-box" id="transcriptBox"></div>
 
-          <button class="btn btn-blue" id="actionBtn">Transcribe</button>
+          <button class="btn btn-blue" id="actionBtn" style="display:none">Send</button>
           <p class="feedback" id="feedback">&nbsp;</p>
         </div>
       </div>
@@ -600,55 +600,52 @@
   </div>
 
   <script>
-    // ── State ──────────────────────────────────────────────
-    let isRecording = false;
-    let isPaused    = false;
-    let isBusy      = false;
-    let mediaRecorder = null;
-    let chunks      = [];
-    let timerInterval = null;
-    let seconds     = 0;
-    let audioBlob   = null;
-    let transcript  = null;
-    let language    = null;
-    let appState    = 'idle'; // idle | recording | transcribing | ready | sending
-    let forcedLang  = 'norwegian'; // 'norwegian' | 'english'
+    // ── Speech recognition ─────────────────────────────────
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition       = null;
+    let finalTranscript   = '';
+    let sessionTranscript = '';
+    let interimTranscript = '';
+    let isRecording       = false;
+    let isPaused          = false;
+    let isBusy            = false;
+    let timerInterval     = null;
+    let seconds           = 0;
+    let appState          = 'idle';
+    let forcedLang        = 'norwegian';
 
     // ── Elements ───────────────────────────────────────────
-    const micBtn        = document.getElementById('micBtn');
-    const statusEl      = document.getElementById('status');
-    const timerEl       = document.getElementById('timer');
-    const actionBtn     = document.getElementById('actionBtn');
-    const feedbackEl    = document.getElementById('feedback');
-    const transcriptBox = document.getElementById('transcriptBox');
-    const miniControls  = document.getElementById('miniControls');
-    const pauseBtn      = document.getElementById('pauseBtn');
-    const pauseIcon     = document.getElementById('pauseIcon');
-    const playIcon      = document.getElementById('playIcon');
-    const pulses        = ['p1','p2','p3'].map(id => document.getElementById(id));
-    const langNoBtn     = document.getElementById('langNo');
-    const langEnBtn     = document.getElementById('langEn');
-
-    // History
-    const tabBtnRecord  = document.getElementById('tabBtnRecord');
-    const tabBtnHistory = document.getElementById('tabBtnHistory');
-    const tabRecord     = document.getElementById('tabRecord');
-    const tabHistory    = document.getElementById('tabHistory');
-    const historyEmpty  = document.getElementById('historyEmpty');
-    const historyList   = document.getElementById('historyList');
-    const reportDetail  = document.getElementById('reportDetail');
-    const backBtn       = document.getElementById('backBtn');
-    const detailBody    = document.getElementById('detailBody');
-    const detailDate    = document.getElementById('detailDate');
+    const micBtn          = document.getElementById('micBtn');
+    const statusEl        = document.getElementById('status');
+    const timerEl         = document.getElementById('timer');
+    const actionBtn       = document.getElementById('actionBtn');
+    const feedbackEl      = document.getElementById('feedback');
+    const transcriptBox   = document.getElementById('transcriptBox');
+    const miniControls    = document.getElementById('miniControls');
+    const pauseBtn        = document.getElementById('pauseBtn');
+    const pauseIcon       = document.getElementById('pauseIcon');
+    const playIcon        = document.getElementById('playIcon');
+    const pulses          = ['p1','p2','p3'].map(id => document.getElementById(id));
+    const langNoBtn       = document.getElementById('langNo');
+    const langEnBtn       = document.getElementById('langEn');
+    const tabBtnRecord    = document.getElementById('tabBtnRecord');
+    const tabBtnHistory   = document.getElementById('tabBtnHistory');
+    const tabRecord       = document.getElementById('tabRecord');
+    const tabHistory      = document.getElementById('tabHistory');
+    const historyEmpty    = document.getElementById('historyEmpty');
+    const historyList     = document.getElementById('historyList');
+    const reportDetail    = document.getElementById('reportDetail');
+    const backBtn         = document.getElementById('backBtn');
+    const detailBody      = document.getElementById('detailBody');
+    const detailDate      = document.getElementById('detailDate');
     const deleteReportBtn = document.getElementById('deleteReportBtn');
-
-    let currentReportId = null;
+    let currentReportId   = null;
 
     // ── Helpers ────────────────────────────────────────────
     function pad(n) { return n < 10 ? '0' + n : String(n); }
 
     function setFeedback(msg, cls) {
-      feedbackEl.textContent = msg || '\u00a0';
+      feedbackEl.textContent = msg || ' ';
       feedbackEl.className = 'feedback' + (cls ? ' ' + cls : '');
     }
 
@@ -657,29 +654,30 @@
       playIcon.style.display  = paused ? '' : 'none';
     }
 
+    function getLangCode() {
+      return forcedLang === 'norwegian' ? 'nb-NO' : 'en-US';
+    }
+
     function setState(s) {
       appState = s;
       if (s === 'idle') {
-        actionBtn.textContent = 'Transcribe';
-        actionBtn.className = 'btn btn-blue';
+        actionBtn.style.display = 'none';
         transcriptBox.classList.remove('visible');
         transcriptBox.textContent = '';
         miniControls.classList.remove('visible');
         timerEl.innerHTML = '&nbsp;';
         statusEl.innerHTML = '&nbsp;';
         statusEl.className = 'status';
-      } else if (s === 'transcribing') {
-        actionBtn.className = 'btn btn-blue busy';
-        actionBtn.innerHTML = 'Transcribing<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
-        miniControls.classList.remove('visible');
       } else if (s === 'ready') {
         actionBtn.textContent = 'Send';
         actionBtn.className = 'btn btn-blue';
+        actionBtn.style.display = '';
         transcriptBox.classList.add('visible');
         miniControls.classList.remove('visible');
       } else if (s === 'sending') {
         actionBtn.className = 'btn btn-blue busy';
         actionBtn.innerHTML = 'Sending<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+        actionBtn.style.display = '';
       }
     }
 
@@ -697,39 +695,88 @@
       timerInterval = null;
     }
 
-    function stopRecording() {
-      return new Promise(resolve => {
-        if (!mediaRecorder) { resolve(); return; }
-        mediaRecorder.onstop = () => {
-          audioBlob = new Blob(chunks, { type: 'audio/webm' });
-          try { mediaRecorder.stream.getTracks().forEach(t => t.stop()); } catch {}
-          resolve();
-        };
-        if (isPaused) { try { mediaRecorder.resume(); } catch {} }
-        mediaRecorder.stop();
-        isRecording = false;
-        isPaused = false;
-        stopTimer();
-        micBtn.classList.remove('recording', 'paused');
-        pulses.forEach(p => p.classList.remove('active'));
-        statusEl.className = 'status';
-        statusEl.innerHTML = '&nbsp;';
-        setPauseIcon(false);
-      });
+    function updateDisplay() {
+      const text = (finalTranscript + sessionTranscript + interimTranscript).trim();
+      if (text) {
+        transcriptBox.textContent = text;
+        transcriptBox.classList.add('visible');
+      }
+    }
+
+    // ── Speech recognition session ─────────────────────────
+    function createRecognition() {
+      const r = new SpeechRecognition();
+      r.continuous = true;
+      r.interimResults = true;
+      r.lang = getLangCode();
+
+      r.onresult = (event) => {
+        sessionTranscript = '';
+        interimTranscript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            sessionTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript = event.results[i][0].transcript;
+          }
+        }
+        updateDisplay();
+      };
+
+      r.onerror = (event) => {
+        if (event.error === 'no-speech' || event.error === 'aborted') return;
+        console.error('Speech error:', event.error);
+      };
+
+      r.onend = () => {
+        finalTranscript += sessionTranscript;
+        sessionTranscript = '';
+        interimTranscript = '';
+
+        if (isRecording && !isPaused) {
+          // iOS killed the session — restart automatically
+          recognition = createRecognition();
+          try { recognition.start(); } catch (e) {}
+        } else if (!isRecording && !isPaused) {
+          // User stopped — show transcript and Send button
+          if (finalTranscript.trim()) {
+            transcriptBox.textContent = finalTranscript.trim();
+            transcriptBox.classList.add('visible');
+            setState('ready');
+          } else {
+            setState('idle');
+          }
+        }
+        // isPaused: do nothing, transcript is preserved
+      };
+
+      return r;
+    }
+
+    function stopRecognition() {
+      isRecording = false;
+      isPaused = false;
+      if (recognition) recognition.stop();
+      stopTimer();
+      micBtn.classList.remove('recording', 'paused');
+      pulses.forEach(p => p.classList.remove('active'));
+      statusEl.className = 'status';
+      statusEl.innerHTML = '&nbsp;';
+      setPauseIcon(false);
+      miniControls.classList.remove('visible');
     }
 
     function resetAll() {
-      if (mediaRecorder && (isRecording || isPaused)) {
-        mediaRecorder.onstop = () => {};
-        try { if (isPaused) mediaRecorder.resume(); mediaRecorder.stop(); } catch {}
-        try { mediaRecorder.stream.getTracks().forEach(t => t.stop()); } catch {}
-      }
       isRecording = false;
       isPaused = false;
       isBusy = false;
-      audioBlob = null;
-      transcript = null;
-      chunks = [];
+      finalTranscript = '';
+      sessionTranscript = '';
+      interimTranscript = '';
+      if (recognition) {
+        try { recognition.stop(); } catch {}
+        recognition = null;
+      }
       stopTimer();
       micBtn.classList.remove('recording', 'paused');
       pulses.forEach(p => p.classList.remove('active'));
@@ -907,18 +954,19 @@
     });
 
     // ── Mic button ─────────────────────────────────────────
-    micBtn.addEventListener('click', async () => {
+    micBtn.addEventListener('click', () => {
       if (isBusy) return;
+
       if (!isRecording && !isPaused) {
+        if (!SpeechRecognition) {
+          setFeedback('speech recognition not supported', 'error');
+          return;
+        }
         resetAll();
+        recognition = createRecognition();
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(stream);
-          chunks = [];
-          mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-          mediaRecorder.start(100);
+          recognition.start();
           isRecording = true;
-          appState = 'idle';
           startTimer();
           micBtn.classList.add('recording');
           pulses.forEach(p => p.classList.add('active'));
@@ -926,21 +974,23 @@
           statusEl.className = 'status recording';
           miniControls.classList.add('visible');
           setFeedback('');
-        } catch {
-          setFeedback('microphone access denied', 'error');
+        } catch (e) {
+          setFeedback('could not start recognition', 'error');
         }
       } else {
-        await stopRecording();
-        miniControls.classList.add('visible');
+        stopRecognition();
+        // setState('ready') or setState('idle') fires inside onend
       }
     });
 
     // ── Pause/resume ───────────────────────────────────────
     pauseBtn.addEventListener('click', () => {
-      if (!mediaRecorder) return;
+      if (!recognition && !isPaused) return;
+
       if (!isPaused) {
-        mediaRecorder.pause();
         isPaused = true;
+        isRecording = false;
+        if (recognition) recognition.stop();
         stopTimer();
         micBtn.classList.remove('recording');
         micBtn.classList.add('paused');
@@ -949,8 +999,10 @@
         statusEl.className = 'status paused';
         setPauseIcon(true);
       } else {
-        mediaRecorder.resume();
         isPaused = false;
+        isRecording = true;
+        recognition = createRecognition();
+        recognition.start();
         timerInterval = setInterval(() => {
           seconds++;
           timerEl.textContent = pad(Math.floor(seconds / 60)) + ':' + pad(seconds % 60);
@@ -964,66 +1016,37 @@
       }
     });
 
-    // ── Delete button ──────────────────────────────────────
+    // ── Delete ─────────────────────────────────────────────
     document.getElementById('deleteBtn').addEventListener('click', resetAll);
 
-    // ── Transcribe / Send ──────────────────────────────────
+    // ── Send ───────────────────────────────────────────────
     actionBtn.addEventListener('click', async () => {
-      if (isBusy) return;
+      if (isBusy || appState !== 'ready') return;
 
-      if (appState === 'idle') {
-        if (isRecording || isPaused) await stopRecording();
-        if (!audioBlob) { setFeedback('record something first', 'error'); return; }
+      const transcriptText = finalTranscript.trim();
+      if (!transcriptText) { setFeedback('nothing to send', 'error'); return; }
 
-        isBusy = true;
-        setState('transcribing');
-        setFeedback('');
+      isBusy = true;
+      setState('sending');
+      setFeedback('');
 
-        try {
-          const formData = new FormData();
-          formData.append('audio', audioBlob, 'memo.webm');
-          const res = await fetch('/transcribe', { method: 'POST', body: formData });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'transcription failed');
-          transcript = data.transcript;
-          language = data.language;
-          transcriptBox.textContent = transcript;
-          setState('ready');
-        } catch (e) {
-          setFeedback(e.message || 'something went wrong', 'error');
-          setState('idle');
-        } finally {
-          isBusy = false;
-        }
-
-      } else if (appState === 'ready') {
-        isBusy = true;
-        setState('sending');
-        setFeedback('');
-
-        try {
-          const res = await fetch('/send-report', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // Use forcedLang to override Whisper's detected language
-            body: JSON.stringify({ transcript, language: forcedLang })
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'server error');
-
-          // Save the report text to history
-          if (data.report) addReport(data.report);
-
-          setFeedback('Sent', 'success');
-          audioBlob = null;
-          transcript = null;
-          setState('idle');
-        } catch (e) {
-          setFeedback(e.message || 'something went wrong', 'error');
-          setState('ready');
-        } finally {
-          isBusy = false;
-        }
+      try {
+        const res = await fetch('/send-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcript: transcriptText, language: forcedLang })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'server error');
+        if (data.report) addReport(data.report);
+        setFeedback('Sent', 'success');
+        finalTranscript = '';
+        setState('idle');
+      } catch (e) {
+        setFeedback(e.message || 'something went wrong', 'error');
+        setState('ready');
+      } finally {
+        isBusy = false;
       }
     });
   </script>
