@@ -580,6 +580,145 @@
     }
 
     .delete-report-btn:active { background: var(--red-bg); }
+
+    /* ── Eksport-ark ── */
+    .export-open-btn {
+      margin: 0 20px 12px;
+      width: calc(100% - 40px);
+    }
+
+    .export-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 40;
+    }
+
+    .export-backdrop.open { opacity: 1; pointer-events: auto; }
+
+    .export-sheet {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 41;
+      background: var(--surface);
+      border-top: 0.5px solid var(--border-mid);
+      border-radius: 16px 16px 0 0;
+      padding: 22px 20px calc(22px + env(safe-area-inset-bottom));
+      max-height: 88dvh;
+      overflow-y: auto;
+      transform: translateY(101%);
+      transition: transform 0.25s ease;
+    }
+
+    .export-sheet.open { transform: translateY(0); }
+
+    .export-title {
+      font-family: 'Fraunces', serif;
+      font-weight: 300;
+      font-size: 19px;
+      margin-bottom: 18px;
+    }
+
+    .export-label {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .export-seg {
+      display: flex;
+      background: var(--bg);
+      border: 0.5px solid var(--border-mid);
+      border-radius: 20px;
+      padding: 3px;
+      gap: 2px;
+      margin-bottom: 20px;
+    }
+
+    .export-seg button {
+      flex: 1;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      border: none;
+      background: none;
+      color: var(--muted);
+      border-radius: 16px;
+      padding: 8px 4px;
+      cursor: pointer;
+      transition: all 0.18s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .export-seg button.active { background: var(--red); color: #fff; }
+    .export-seg button:disabled { opacity: 0.3; cursor: default; }
+
+    .export-actions { display: flex; flex-direction: column; gap: 10px; }
+
+    .export-note {
+      margin-top: 14px;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      line-height: 1.6;
+      color: var(--hint);
+      text-align: center;
+      min-height: 16px;
+    }
+
+    .export-note.error { color: var(--red); }
+
+    .export-help { margin-top: 18px; }
+
+    .export-help summary {
+      list-style: none;
+      cursor: pointer;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .export-help summary::-webkit-details-marker { display: none; }
+    .export-help summary::before { content: '+ '; }
+    .export-help[open] summary::before { content: '\2212\00a0'; }
+
+    .export-steps {
+      margin: 12px 0 0;
+      padding-left: 18px;
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+
+    .export-steps li { margin: 6px 0; }
+
+    .export-steps code {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      background: var(--bg);
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+
+    .export-input {
+      width: 100%;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: var(--text);
+      background: var(--bg);
+      border: 0.5px solid var(--border-mid);
+      border-radius: var(--radius);
+      padding: 10px;
+    }
   </style>
 </head>
 <body>
@@ -703,6 +842,15 @@
               Del
             </button>
           </div>
+          <button class="btn-outline export-open-btn" id="exportBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14,3 14,8 19,8"/>
+              <line x1="12" y1="11" x2="12" y2="16.5"/>
+              <polyline points="9.5,14 12,16.5 14.5,14"/>
+            </svg>
+            Lagre som fil
+          </button>
           <button class="delete-report-btn" id="deleteReportBtn">Slett rapport</button>
         </div>
       </div>
@@ -728,6 +876,53 @@
         Rapporter
       </button>
     </nav>
+  </div>
+
+  <!-- Eksport-ark: .md-fil til Filer -->
+  <div class="export-backdrop" id="exportBackdrop"></div>
+  <div class="export-sheet" id="exportSheet" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+    <p class="export-title" id="exportTitle">Lagre som fil</p>
+
+    <span class="export-label">Innhold</span>
+    <div class="export-seg" id="exportSeg">
+      <button type="button" data-kind="report">Rapport</button>
+      <button type="button" data-kind="transcript">Transkripsjon</button>
+    </div>
+
+    <div class="export-actions">
+      <button class="btn-outline" id="exportShareBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="3" x2="12" y2="15"/>
+          <polyline points="8.5,6.5 12,3 15.5,6.5"/>
+          <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>
+        </svg>
+        Arkiver i Filer
+      </button>
+      <button class="btn-outline" id="exportShortcutBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <line x1="12" y1="10" x2="12" y2="15"/>
+          <polyline points="9.5,12.5 12,15 14.5,12.5"/>
+        </svg>
+        Send til mappe
+      </button>
+    </div>
+
+    <p class="export-note" id="exportNote">&nbsp;</p>
+
+    <details class="export-help" id="exportHelp">
+      <summary>Slik setter du opp den faste mappen</summary>
+      <ol class="export-steps">
+        <li>Åpne Snarveier og lag en ny snarvei. Gi den navnet under.</li>
+        <li>Legg til «Hent ordbok fra inndata» (Get Dictionary from Input).</li>
+        <li>Legg til «Hent ordbokverdi» (Get Dictionary Value) med nøkkel <code>filename</code>, og så «Angi variabel» (Set Variable) med navn <code>Filnavn</code>.</li>
+        <li>Legg til «Hent ordbokverdi» en gang til, nå med nøkkel <code>content</code>. Pass på at inndata står til ordboken fra steg 2, ikke til variabelen.</li>
+        <li>Legg til «Arkiver fil» (Save File). Slå av «Spør hvor arkivere», velg iCloud Drive og skriv målbanen, for eksempel <code>/Notater/[Filnavn]</code>. Slå på «Overskriv hvis filen finnes».</li>
+        <li>Første gang du trykker «Send til mappe» spør iOS om lov til å kjøre snarveien.</li>
+      </ol>
+      <span class="export-label" style="margin: 16px 0 8px">Navn på snarveien</span>
+      <input class="export-input" id="shortcutNameInput" type="text" spellcheck="false" autocapitalize="none" autocorrect="off" />
+    </details>
   </div>
 
   <script type="module">
@@ -1194,6 +1389,7 @@ Return JSON with:
     }
 
     backBtn.addEventListener('click', () => {
+      closeExport();
       reportDetail.classList.remove('open');
       currentReport = null;
     });
@@ -1218,11 +1414,153 @@ Return JSON with:
       }).catch(() => {});
     });
 
+    // ── Eksport: fil til Filer / iCloud ────────────────────
+    const EXPORT_KIND_KEY  = 'voiceMemoExportKind';
+    const SHORTCUT_KEY     = 'voiceMemoShortcutName';
+    const SHORTCUT_DEFAULT = 'Lagre notat';
+    // shortcuts:// tåler ikke vilkårlig lange URL-er; over dette går teksten via utklippstavlen
+    const SHORTCUT_URL_MAX = 12000;
+
+    let exportKind = localStorage.getItem(EXPORT_KIND_KEY) === 'transcript' ? 'transcript' : 'report';
+
+    function shortcutName() {
+      return (localStorage.getItem(SHORTCUT_KEY) || '').trim() || SHORTCUT_DEFAULT;
+    }
+
+    function slugify(s) {
+      return ((s || '').toLowerCase()
+        .replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'a')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 50)) || 'notat';
+    }
+
+    function exportPayload(ext) {
+      const r = currentReport;
+      const title = r.title || 'Rapport';
+      const body = exportKind === 'transcript' ? (r.transcript || '') : (r.report || '');
+      const d = r.createdAt && r.createdAt.toDate ? r.createdAt.toDate() : new Date();
+      const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      // Eget navn på transkripsjonen, ellers overskriver de to hverandre i mappen
+      const suffix = exportKind === 'transcript' ? '-transkripsjon' : '';
+      return {
+        filename: `${date}-${slugify(title)}${suffix}${ext}`,
+        content: `# ${title}\n\n${body}\n`
+      };
+    }
+
+    // iOS avviser noen MIME-typer i delearket; da faller vi tilbake til .txt
+    function makeShareFile() {
+      if (!navigator.share || !navigator.canShare) return null;
+      for (const c of [{ ext: '.md', mime: 'text/markdown' }, { ext: '.txt', mime: 'text/plain' }]) {
+        const { filename, content } = exportPayload(c.ext);
+        const file = new File([content], filename, { type: c.mime });
+        if (navigator.canShare({ files: [file] })) return file;
+      }
+      return null;
+    }
+
+    function downloadFile() {
+      const { filename, content } = exportPayload('.md');
+      const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      setExportNote(`lastet ned som ${filename}`);
+    }
+
+    async function exportViaShare() {
+      const file = makeShareFile();
+      if (!file) { downloadFile(); return; }
+      try {
+        await navigator.share({ files: [file] });
+        closeExport();
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;   // brukeren lukket delearket
+        downloadFile();
+      }
+    }
+
+    async function exportViaShortcut() {
+      const payload = JSON.stringify(exportPayload('.md'));
+      const base = `shortcuts://run-shortcut?name=${encodeURIComponent(shortcutName())}`;
+      const withText = `${base}&input=text&text=${encodeURIComponent(payload)}`;
+
+      if (withText.length <= SHORTCUT_URL_MAX) {
+        location.href = withText;
+        closeExport();
+        return;
+      }
+      // For langt for URL-en: send teksten via utklippstavlen i stedet
+      try {
+        await navigator.clipboard.writeText(payload);
+      } catch (err) {
+        setExportNote('notatet er for langt for snarveien, bruk Arkiver i Filer', true);
+        return;
+      }
+      location.href = `${base}&input=clipboard`;
+      closeExport();
+    }
+
+    function setExportNote(msg, isError) {
+      exportNote.textContent = msg || ' ';
+      exportNote.classList.toggle('error', !!isError);
+    }
+
+    function setExportKind(kind) {
+      exportKind = kind;
+      localStorage.setItem(EXPORT_KIND_KEY, kind);
+      exportSeg.querySelectorAll('button').forEach(b => {
+        b.classList.toggle('active', b.dataset.kind === kind);
+      });
+    }
+
+    function openExport() {
+      if (!currentReport) return;
+      const hasTranscript = !!(currentReport.transcript || '').trim();
+      exportSeg.querySelector('[data-kind="transcript"]').disabled = !hasTranscript;
+      setExportKind(hasTranscript ? exportKind : 'report');
+      shortcutNameInput.value = shortcutName();
+      setExportNote('');
+      exportBackdrop.classList.add('open');
+      exportSheet.classList.add('open');
+    }
+
+    function closeExport() {
+      exportBackdrop.classList.remove('open');
+      exportSheet.classList.remove('open');
+    }
+
+    exportBtn.addEventListener('click', openExport);
+    exportBackdrop.addEventListener('click', closeExport);
+    exportShareBtn.addEventListener('click', exportViaShare);
+    exportShortcutBtn.addEventListener('click', exportViaShortcut);
+
+    exportSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (btn && !btn.disabled) setExportKind(btn.dataset.kind);
+    });
+
+    shortcutNameInput.addEventListener('change', () => {
+      localStorage.setItem(SHORTCUT_KEY, shortcutNameInput.value.trim());
+      shortcutNameInput.value = shortcutName();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeExport();
+    });
+
     deleteReportBtn.addEventListener('click', async () => {
       if (!currentReport) return;
       if (!confirm('Slette denne rapporten?')) return;
       try {
         await deleteDoc(doc(reportsCol(user.uid), currentReport.id));
+        closeExport();
         reportDetail.classList.remove('open');
         currentReport = null;
       } catch (err) {
