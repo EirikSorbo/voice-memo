@@ -662,6 +662,7 @@
     .export-seg button:disabled { opacity: 0.3; cursor: default; }
 
     .export-actions { display: flex; flex-direction: column; gap: 10px; }
+    .export-actions a.btn-outline { text-decoration: none; }
 
     .export-note {
       margin-top: 14px;
@@ -898,14 +899,14 @@
         </svg>
         Arkiver i Filer
       </button>
-      <button class="btn-outline" id="exportShortcutBtn">
+      <a class="btn-outline" id="exportShortcutBtn" role="button" href="#">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
           <line x1="12" y1="10" x2="12" y2="15"/>
           <polyline points="9.5,12.5 12,15 14.5,12.5"/>
         </svg>
         Send til mappe
-      </button>
+      </a>
     </div>
 
     <p class="export-note" id="exportNote">&nbsp;</p>
@@ -917,7 +918,7 @@
         <li>Legg til «Hent ordbok fra inndata» (Get Dictionary from Input).</li>
         <li>Legg til «Hent ordbokverdi» (Get Dictionary Value) med nøkkel <code>filename</code>, og så «Angi variabel» (Set Variable) med navn <code>Filnavn</code>.</li>
         <li>Legg til «Hent ordbokverdi» en gang til, nå med nøkkel <code>content</code>. Pass på at inndata står til ordboken fra steg 2, ikke til variabelen.</li>
-        <li>Legg til «Arkiver fil» (Save File). Slå av «Spør hvor arkivere», velg iCloud Drive og skriv målbanen <code>/Documents/Hjelper Hjerne/inbox/</code> med variabelen <code>Filnavn</code> rett bak. Slå på «Overskriv hvis filen finnes».</li>
+        <li>Legg til «Arkiver fil» (Save File). Trykk på mappenavnet i handlingen, det står «Shortcuts» fra før, og velg inbox-mappen: iCloud Drive, Documents, Hjelper Hjerne, inbox. Slå av «Spør om arkiveringssted», sett «Underbane» til bare variabelen <code>Filnavn</code>, og slå på «Overskriv eksisterende fil».</li>
         <li>Første gang du trykker «Send til mappe» spør iOS om lov til å kjøre snarveien.</li>
       </ol>
       <span class="export-label" style="margin: 16px 0 8px">Navn på snarveien</span>
@@ -1493,25 +1494,61 @@ Return JSON with:
       }
     }
 
-    async function exportViaShortcut() {
-      const payload = JSON.stringify(exportPayload('.md'));
-      const base = `shortcuts://run-shortcut?name=${encodeURIComponent(shortcutName())}`;
-      const withText = `${base}&input=text&text=${encodeURIComponent(payload)}`;
+    function shortcutBase() {
+      return `shortcuts://run-shortcut?name=${encodeURIComponent(shortcutName())}`;
+    }
 
-      if (withText.length <= SHORTCUT_URL_MAX) {
-        location.href = withText;
-        closeExport();
-        return;
+    function shortcutTextUrl() {
+      const payload = JSON.stringify(exportPayload('.md'));
+      return { payload, url: `${shortcutBase()}&input=text&text=${encodeURIComponent(payload)}` };
+    }
+
+    // Lenken legges på knappen på forhånd, så trykket blir en ekte navigasjon.
+    // iOS åpner shortcuts://-lenker fra en hjemskjerm-app langt mer pålitelig
+    // enn en location.href satt fra JavaScript.
+    function updateShortcutHref() {
+      if (!currentReport) return;
+      const { url } = shortcutTextUrl();
+      exportShortcutBtn.href = url.length <= SHORTCUT_URL_MAX
+        ? url
+        : `${shortcutBase()}&input=clipboard`;
+    }
+
+    // Åpner Snarveier seg, blir siden skjult. Skjer ikke det, kom vi aldri av
+    // gårde, og da sier vi fra i stedet for å stå stille uten tilbakemelding.
+    function watchShortcutJump() {
+      let jumped = false;
+      const onChange = () => {
+        if (document.visibilityState !== 'hidden') return;
+        jumped = true;
+        setExportNote('');
+        document.removeEventListener('visibilitychange', onChange);
+      };
+      document.addEventListener('visibilitychange', onChange);
+      setTimeout(() => {
+        if (!jumped) setExportNote(`ser ikke ut til at Snarveier åpnet. Finnes snarveien «${shortcutName()}»?`, true);
+      }, 4000);
+    }
+
+    async function exportViaShortcut(e) {
+      if (!currentReport) { e.preventDefault(); return; }
+      const { payload, url } = shortcutTextUrl();
+      setExportNote('åpner Snarveier');
+
+      if (url.length <= SHORTCUT_URL_MAX) {
+        watchShortcutJump();
+        return;                     // lenken på knappen navigerer selv
       }
       // For langt for URL-en: send teksten via utklippstavlen i stedet
+      e.preventDefault();
       try {
         await navigator.clipboard.writeText(payload);
       } catch (err) {
         setExportNote('notatet er for langt for snarveien, bruk Arkiver i Filer', true);
         return;
       }
-      location.href = `${base}&input=clipboard`;
-      closeExport();
+      watchShortcutJump();
+      location.href = `${shortcutBase()}&input=clipboard`;
     }
 
     function setExportNote(msg, isError) {
@@ -1525,6 +1562,7 @@ Return JSON with:
       exportSeg.querySelectorAll('button').forEach(b => {
         b.classList.toggle('active', b.dataset.kind === kind);
       });
+      updateShortcutHref();
     }
 
     function openExport() {
@@ -1556,6 +1594,7 @@ Return JSON with:
     shortcutNameInput.addEventListener('change', () => {
       localStorage.setItem(SHORTCUT_KEY, shortcutNameInput.value.trim());
       shortcutNameInput.value = shortcutName();
+      updateShortcutHref();
     });
 
     document.addEventListener('keydown', (e) => {

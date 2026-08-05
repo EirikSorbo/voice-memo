@@ -53,9 +53,13 @@ rapporten eller transkripsjonen, og så to veier ut:
    av **Angi variabel** (Set Variable) med navn `Filnavn`.
 4. **Hent ordbokverdi** en gang til, nå med nøkkel `content`. Sjekk at inndata
    peker på ordboken fra steg 2, ikke på variabelen fra steg 3.
-5. **Arkiver fil** (Save File): slå av «Spør hvor arkivere», velg iCloud Drive,
-   og sett målbanen til `/Documents/Hjelper Hjerne/inbox/` med variabelen
-   `Filnavn` rett bak. Slå på «Overskriv hvis filen finnes».
+5. **Arkiver fil** (Save File): trykk på mappenavnet i handlingen, som står til
+   «Shortcuts» fra før, og velg inbox-mappen (iCloud Drive → Documents →
+   Hjelper Hjerne → inbox). Slå av «Spør om arkiveringssted», sett
+   «Underbane» til bare variabelen `Filnavn`, og slå på «Overskriv
+   eksisterende fil». Mappen i handlingen er utgangspunktet for underbanen, så
+   skriver du hele stien i underbanen havner filen i
+   `Shortcuts/Documents/Hjelper Hjerne/inbox/` i stedet.
 
 Målmappen er `~/Documents/Hjelper Hjerne/inbox` på Mac-en. Den er nåbar fra
 iPhone fordi «Skrivebord og Dokumenter» synkes til iCloud Drive, og ligger der
