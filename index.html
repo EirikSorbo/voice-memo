@@ -917,7 +917,7 @@
         <li>Legg til «Hent ordbok fra inndata» (Get Dictionary from Input).</li>
         <li>Legg til «Hent ordbokverdi» (Get Dictionary Value) med nøkkel <code>filename</code>, og så «Angi variabel» (Set Variable) med navn <code>Filnavn</code>.</li>
         <li>Legg til «Hent ordbokverdi» en gang til, nå med nøkkel <code>content</code>. Pass på at inndata står til ordboken fra steg 2, ikke til variabelen.</li>
-        <li>Legg til «Arkiver fil» (Save File). Slå av «Spør hvor arkivere», velg iCloud Drive og skriv målbanen, for eksempel <code>/Notater/[Filnavn]</code>. Slå på «Overskriv hvis filen finnes».</li>
+        <li>Legg til «Arkiver fil» (Save File). Slå av «Spør hvor arkivere», velg iCloud Drive og skriv målbanen <code>/Documents/Hjelper Hjerne/inbox/</code> med variabelen <code>Filnavn</code> rett bak. Slå på «Overskriv hvis filen finnes».</li>
         <li>Første gang du trykker «Send til mappe» spør iOS om lov til å kjøre snarveien.</li>
       </ol>
       <span class="export-label" style="margin: 16px 0 8px">Navn på snarveien</span>
@@ -1427,13 +1427,20 @@ Return JSON with:
       return (localStorage.getItem(SHORTCUT_KEY) || '').trim() || SHORTCUT_DEFAULT;
     }
 
-    function slugify(s) {
-      return ((s || '').toLowerCase()
-        .replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'a')
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 50)) || 'notat';
+
+    function sameDay(ts, d) {
+      const t = ts && ts.toDate ? ts.toDate() : null;
+      return !!t && t.getFullYear() === d.getFullYear() &&
+             t.getMonth() === d.getMonth() && t.getDate() === d.getDate();
+    }
+
+    // Løpenummer innen dagen. Tallet følger memoets plass i historikken, ikke
+    // hvor mange ganger du har eksportert, så samme memo får alltid samme
+    // filnavn og en ny eksport overskriver i stedet for å hope seg opp.
+    function memoNumber(d) {
+      const ofDay = reports.filter(r => sameDay(r.createdAt, d));   // nyest først
+      const idx = ofDay.findIndex(r => r.id === currentReport.id);
+      return idx === -1 ? ofDay.length + 1 : ofDay.length - idx;
     }
 
     function exportPayload(ext) {
@@ -1445,7 +1452,7 @@ Return JSON with:
       // Eget navn på transkripsjonen, ellers overskriver de to hverandre i mappen
       const suffix = exportKind === 'transcript' ? '-transkripsjon' : '';
       return {
-        filename: `${date}-${slugify(title)}${suffix}${ext}`,
+        filename: `${date}-voice-memo-${memoNumber(d)}${suffix}${ext}`,
         content: `# ${title}\n\n${body}\n`
       };
     }

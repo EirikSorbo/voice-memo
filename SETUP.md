@@ -54,8 +54,17 @@ rapporten eller transkripsjonen, og så to veier ut:
 4. **Hent ordbokverdi** en gang til, nå med nøkkel `content`. Sjekk at inndata
    peker på ordboken fra steg 2, ikke på variabelen fra steg 3.
 5. **Arkiver fil** (Save File): slå av «Spør hvor arkivere», velg iCloud Drive,
-   og sett målbanen til for eksempel `/Notater/[Filnavn]`. Slå på «Overskriv
-   hvis filen finnes».
+   og sett målbanen til `/Documents/Hjelper Hjerne/inbox/` med variabelen
+   `Filnavn` rett bak. Slå på «Overskriv hvis filen finnes».
+
+Målmappen er `~/Documents/Hjelper Hjerne/inbox` på Mac-en. Den er nåbar fra
+iPhone fordi «Skrivebord og Dokumenter» synkes til iCloud Drive, og ligger der
+under `Documents`. Skrus den synkingen av, forsvinner mappen fra telefonen.
+
+Filnavnet blir `2026-08-05-voice-memo-1.md`, der tallet er memoets plass blant
+dagens memoer. Tallet kommer fra historikken i Firestore, ikke fra en teller,
+så en ny eksport av samme memo overskriver filen i stedet for å lage en ny.
+Transkripsjonen får `-transkripsjon` bakpå så den ikke overskriver rapporten.
 
 Appen sender notatet som JSON i `shortcuts://`-URL-en. Er notatet for langt for
 en URL (over ~12 000 tegn), legges det på utklippstavlen i stedet og snarveien
