@@ -1008,6 +1008,92 @@
     let unsubscribe = null;
     let currentReport = null;
 
+    // ── IndexedDB draft: løpende lagring av opptak ─────────
+    // Skriver hver 1-sekundsbit av MediaRecorder til IndexedDB.
+    // Hvis appen dør (krasj, tomt batteri), plukkes opptaket opp
+    // igjen ved neste innlogging som en «gjenopprettet» kladd.
+    const DRAFT_DB = 'voice-memo-drafts';
+    let draftDbPromise = null;
+    let draftReady = false;
+
+    function openDraftDb() {
+      if (draftDbPromise) return draftDbPromise;
+      draftDbPromise = new Promise((resolve, reject) => {
+        const req = indexedDB.open(DRAFT_DB, 1);
+        req.onupgradeneeded = () => {
+          const idb = req.result;
+          if (!idb.objectStoreNames.contains('meta'))   idb.createObjectStore('meta');
+          if (!idb.objectStoreNames.contains('chunks')) idb.createObjectStore('chunks', { autoIncrement: true });
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror   = () => reject(req.error);
+      });
+      return draftDbPromise;
+    }
+
+    async function idbSaveMeta(meta) {
+      try {
+        const idb = await openDraftDb();
+        await new Promise((res, rej) => {
+          const tx = idb.transaction('meta', 'readwrite');
+          tx.objectStore('meta').put(meta, 'current');
+          tx.oncomplete = res;
+          tx.onerror = () => rej(tx.error);
+        });
+      } catch (err) { console.warn('draft meta:', err); }
+    }
+
+    async function idbSaveChunk(blob) {
+      try {
+        const idb = await openDraftDb();
+        await new Promise((res, rej) => {
+          const tx = idb.transaction('chunks', 'readwrite');
+          tx.objectStore('chunks').add(blob);
+          tx.oncomplete = res;
+          tx.onerror = () => rej(tx.error);
+        });
+      } catch (err) { console.warn('draft chunk:', err); }
+    }
+
+    async function idbLoadDraft() {
+      try {
+        const idb = await openDraftDb();
+        const meta = await new Promise((res, rej) => {
+          const tx = idb.transaction('meta', 'readonly');
+          const req = tx.objectStore('meta').get('current');
+          req.onsuccess = () => res(req.result || null);
+          req.onerror = () => rej(req.error);
+        });
+        if (!meta) return null;
+        const blobs = await new Promise((res, rej) => {
+          const tx = idb.transaction('chunks', 'readonly');
+          const req = tx.objectStore('chunks').getAll();
+          req.onsuccess = () => res(req.result || []);
+          req.onerror = () => rej(req.error);
+        });
+        if (!blobs.length) return null;
+        return {
+          blob: new Blob(blobs, { type: meta.mime }),
+          mime: meta.mime,
+          lang: meta.lang,
+          chunkCount: blobs.length
+        };
+      } catch (err) { console.warn('draft load:', err); return null; }
+    }
+
+    async function idbClearDraft() {
+      try {
+        const idb = await openDraftDb();
+        await new Promise((res, rej) => {
+          const tx = idb.transaction(['meta', 'chunks'], 'readwrite');
+          tx.objectStore('meta').clear();
+          tx.objectStore('chunks').clear();
+          tx.oncomplete = res;
+          tx.onerror = () => rej(tx.error);
+        });
+      } catch (err) { console.warn('draft clear:', err); }
+    }
+
     // ── Elements ───────────────────────────────────────────
     const $ = id => document.getElementById(id);
     const setupCard    = $('setupCard');
@@ -1071,6 +1157,7 @@
         if (u) {
           watchReports(u.uid);
           importLegacyReports(u.uid);
+          tryRestoreDraft();
         }
         renderHistory();
       });
@@ -1277,6 +1364,27 @@ Return JSON with:
       });
     }
 
+    async function tryRestoreDraft() {
+      if (isRecording || isPaused || draftReady || audioBlob) return;
+      const draft = await idbLoadDraft();
+      if (!draft) return;
+      audioBlob  = draft.blob;
+      audioMime  = draft.mime || 'audio/webm';
+      forcedLang = draft.lang || forcedLang;
+      seconds    = draft.chunkCount;
+      draftReady = true;
+      if (forcedLang === 'english') {
+        langEnBtn.classList.add('active'); langNoBtn.classList.remove('active');
+      } else {
+        langNoBtn.classList.add('active'); langEnBtn.classList.remove('active');
+      }
+      timerEl.textContent = pad(Math.floor(seconds / 60)) + ':' + pad(seconds % 60);
+      statusEl.textContent = 'gjenopprettet opptak';
+      statusEl.className = 'status paused';
+      miniControls.classList.add('visible');
+      setFeedback('uferdig opptak fra forrige økt — lag rapport eller forkast');
+    }
+
     function resetAll() {
       if (mediaRecorder && (isRecording || isPaused)) {
         mediaRecorder.onstop = () => {};
@@ -1288,6 +1396,8 @@ Return JSON with:
       audioBlob = null;
       chunks = [];
       seconds = 0;
+      draftReady = false;
+      idbClearDraft();
       stopTimer();
       micBtn.classList.remove('recording', 'paused');
       pulses.forEach(p => p.classList.remove('active'));
@@ -1663,8 +1773,16 @@ Return JSON with:
             : { audioBitsPerSecond: 32000 });
           chunks = [];
           audioBlob = null;
-          mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+          draftReady = false;
+          mediaRecorder.ondataavailable = e => {
+            if (e.data.size > 0) {
+              chunks.push(e.data);
+              idbSaveChunk(e.data);
+            }
+          };
           mediaRecorder.start(1000);
+          audioMime = (mediaRecorder.mimeType || mime || 'audio/webm').split(';')[0];
+          idbSaveMeta({ mime: audioMime, lang: forcedLang });
           isRecording = true;
           seconds = 0;
           startTimer();
