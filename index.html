@@ -273,6 +273,37 @@
     .mini-btn:active { transform: scale(0.93); background: var(--border); }
     .mini-btn svg { width: 16px; height: 16px; }
 
+    .pause-slot {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 108px;
+      margin-bottom: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .pause-slot.visible { opacity: 1; pointer-events: all; }
+
+    .pause-big {
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 50%;
+      width: 108px;
+      height: 108px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+      color: var(--muted);
+    }
+
+    .pause-big:active { transform: scale(0.96); background: var(--border); }
+    .pause-big svg { width: 40px; height: 40px; }
+
     .status {
       font-size: 11px;
       letter-spacing: 0.1em;
@@ -762,14 +793,8 @@
               </button>
             </div>
 
-            <!-- Language toggle: which language the report is written in -->
-            <div class="lang-toggle" id="langToggle">
-              <button class="lang-btn active" id="langNo" aria-label="Norsk">NO</button>
-              <button class="lang-btn" id="langEn" aria-label="Engelsk">EN</button>
-            </div>
-
-            <div class="mini-controls" id="miniControls">
-              <button class="mini-btn" id="pauseBtn" aria-label="Pause">
+            <div class="pause-slot" id="pauseSlot">
+              <button class="pause-big" id="pauseBtn" aria-label="Pause">
                 <svg id="pauseIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
                   <rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>
                 </svg>
@@ -777,6 +802,15 @@
                   <polygon points="5,3 19,12 5,21"/>
                 </svg>
               </button>
+            </div>
+
+            <!-- Language toggle: which language the report is written in -->
+            <div class="lang-toggle" id="langToggle">
+              <button class="lang-btn active" id="langNo" aria-label="Norsk">NO</button>
+              <button class="lang-btn" id="langEn" aria-label="Engelsk">EN</button>
+            </div>
+
+            <div class="mini-controls" id="miniControls">
               <button class="mini-btn" id="deleteBtn" aria-label="Forkast opptak">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="3,6 5,6 21,6"/>
@@ -986,6 +1020,7 @@
     const actionBtn    = $('actionBtn');
     const feedbackEl   = $('feedback');
     const miniControls = $('miniControls');
+    const pauseSlot    = $('pauseSlot');
     const pauseBtn     = $('pauseBtn');
     const pauseIcon    = $('pauseIcon');
     const playIcon     = $('playIcon');
@@ -1257,6 +1292,7 @@ Return JSON with:
       micBtn.classList.remove('recording', 'paused');
       pulses.forEach(p => p.classList.remove('active'));
       miniControls.classList.remove('visible');
+      pauseSlot.classList.remove('visible');
       timerEl.innerHTML = '&nbsp;';
       statusEl.innerHTML = '&nbsp;';
       statusEl.className = 'status';
@@ -1637,6 +1673,7 @@ Return JSON with:
           statusEl.textContent = 'tar opp';
           statusEl.className = 'status recording';
           miniControls.classList.add('visible');
+          pauseSlot.classList.add('visible');
           setFeedback('');
         } catch (err) {
           console.error('Mikrofon:', err);
@@ -1645,6 +1682,7 @@ Return JSON with:
       } else {
         await stopRecording();
         miniControls.classList.add('visible');
+        pauseSlot.classList.add('visible');
       }
     });
 
