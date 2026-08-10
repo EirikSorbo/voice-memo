@@ -31,7 +31,7 @@
       --red-border: rgba(226,75,74,0.3);
       --blue: #378ADD;
       --radius: 10px;
-      --tab-h: 60px;
+      --tab-h: 64px;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -81,8 +81,10 @@
 
     /* ── Bottom tab bar ── */
     .tab-bar {
-      height: var(--tab-h);
-      padding-bottom: env(safe-area-inset-bottom, 0);
+      /* Høyden gjelder innholdet; hjemindikatoren legges på i tillegg, ellers
+         spiser den av plassen og ikonene presses opp i streken over. */
+      height: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px));
+      padding-bottom: env(safe-area-inset-bottom, 0px);
       background: var(--surface);
       border-top: 0.5px solid var(--border-mid);
       display: flex;
@@ -94,11 +96,11 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 5px;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
       color: var(--hint);
-      font-size: 10px;
+      font-size: 11px;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       transition: color 0.15s;
@@ -106,7 +108,7 @@
       background: none;
     }
 
-    .tab-item svg { width: 22px; height: 22px; }
+    .tab-item svg { width: 27px; height: 27px; }
     .tab-item.active { color: var(--red); }
 
     /* ── Record tab ── */
